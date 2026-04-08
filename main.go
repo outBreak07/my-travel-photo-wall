@@ -187,6 +187,14 @@ func seedAdminUser() {
 	var count int
 	db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", adminUsername).Scan(&count)
 	if count > 0 {
+		// Always sync password and role from .env
+		_, err := db.Exec("UPDATE users SET password_hash = ?, role = 'admin' WHERE username = ?",
+			hashPassword(adminPassword), adminUsername)
+		if err != nil {
+			fmt.Printf("[WARN] Failed to update admin password: %v\n", err)
+		} else {
+			fmt.Printf("[INFO] Admin user '%s' password synced from .env\n", adminUsername)
+		}
 		return
 	}
 	_, err := db.Exec(
