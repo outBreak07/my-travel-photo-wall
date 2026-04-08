@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>China Photo Wall</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="header">
+            <h1 id="title" data-i18n="title">China Photo Wall</h1>
+            <div id="breadcrumb">
+                <span id="nav-home" class="nav-link active" onclick="goHome()" data-i18n="all">All</span>
+                <span id="nav-province" class="nav-link" style="display:none"></span>
+                <span id="nav-city" class="nav-link" style="display:none"></span>
+            </div>
+            <div id="header-controls">
+                <div id="theme-picker">
+                    <span class="theme-dot" data-theme-id="light" onclick="setTheme('light')"></span>
+                    <span class="theme-dot" data-theme-id="dark" onclick="setTheme('dark')"></span>
+                    <span class="theme-dot" data-theme-id="mocha" onclick="setTheme('mocha')"></span>
+                    <span class="theme-dot" data-theme-id="nord" onclick="setTheme('nord')"></span>
+                    <span class="theme-dot" data-theme-id="berry" onclick="setTheme('berry')"></span>
+                </div>
+                <button id="lang-toggle" onclick="toggleLang()">中文</button>
+                <button id="users-btn" style="display:none" onclick="showUsersModal()"></button>
+                <button id="auth-btn" onclick="onAuthBtnClick()">Login</button>
+            </div>
+        </div>
+
+        <div id="main">
+            <div id="map-container">
+                <div id="map"></div>
+                <div id="photo-overlay"></div>
+                <div id="zoom-hint" data-i18n="zoomHint">Scroll to zoom in and explore cities</div>
+            </div>
+
+            <div id="photo-panel">
+                <div id="photo-header">
+                    <h2 id="photo-title" data-i18n="photos">Photos</h2>
+                    <button id="btn-upload" class="admin-only" onclick="showUploadModal()" data-i18n="upload">+ Upload</button>
+                </div>
+                <div id="photo-grid"></div>
+                <div id="photo-empty">
+                    <p>&#128247;</p>
+                    <p data-i18n="noPhotos">No photos yet. Upload some!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload modal -->
+    <div id="upload-modal" class="modal" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 data-i18n="uploadTitle">Upload Photos</h3>
+                <span class="modal-close" onclick="hideUploadModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label data-i18n="province">Province</label>
+                    <select id="upload-province" onchange="onProvinceSelect()">
+                        <option value="" data-i18n="selectProvince">Select province...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="city">City (optional)</label>
+                    <select id="upload-city">
+                        <option value="" data-i18n="selectProvinceFirst">Select province first</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="description">Description (optional)</label>
+                    <textarea id="upload-desc" data-i18n-placeholder="descPlaceholder" placeholder="Add a description for these photos..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="images">Images</label>
+                    <input type="file" id="upload-file" accept="image/*" multiple>
+                </div>
+                <div id="upload-preview"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="hideUploadModal()" data-i18n="cancel">Cancel</button>
+                <button class="btn-submit" onclick="doUpload()" data-i18n="uploadBtn">Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview modal -->
+    <div id="preview-modal" class="modal" style="display:none">
+        <div class="preview-content" onclick="event.stopPropagation()">
+            <span class="modal-close" onclick="hidePreviewModal()">&times;</span>
+            <!-- Image area -->
+            <div class="preview-img-wrap">
+                <img id="preview-img" src="" alt="preview">
+                <div id="preview-prev" class="preview-nav preview-nav-left" onclick="navigatePhoto(-1)">&#8249;</div>
+                <div id="preview-next" class="preview-nav preview-nav-right" onclick="navigatePhoto(1)">&#8250;</div>
+                <!-- Viewer toolbar -->
+                <div class="viewer-toolbar">
+                    <button onclick="viewerZoomIn()" title="Zoom in"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10" cy="10" r="6.5"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="7.5" y1="10" x2="12.5" y2="10"/><line x1="10" y1="7.5" x2="10" y2="12.5"/></svg></button>
+                    <button onclick="viewerZoomOut()" title="Zoom out"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10" cy="10" r="6.5"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="7.5" y1="10" x2="12.5" y2="10"/></svg></button>
+                    <button onclick="viewerRotate()" title="Rotate"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
+                    <button onclick="viewerReset()" title="Reset"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+                    <button id="preview-fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+                </div>
+            </div>
+            <!-- Info & comments panel -->
+            <div class="preview-info">
+                <div class="preview-meta-row">
+                    <div id="preview-location" class="preview-location"></div>
+                    <select id="preview-city" class="preview-city-select admin-edit-only"></select>
+                </div>
+                <div id="preview-meta" class="preview-photo-meta"></div>
+                <!-- Edit controls (logged-in only) -->
+                <div id="preview-edit-area" class="preview-edit-area">
+                    <textarea id="preview-desc" class="preview-textarea" data-i18n-placeholder="descPlaceholder" placeholder="Add a description..."></textarea>
+                    <div class="preview-actions">
+                        <button id="preview-delete-btn" class="btn-danger" onclick="deletePhoto()" data-i18n="deleteBtn">Delete</button>
+                        <button id="preview-save-btn" class="btn-submit" onclick="saveDescription()" data-i18n="save">Save</button>
+                    </div>
+                </div>
+                <!-- Comments section (visible to all) -->
+                <div class="comments-section">
+                    <div class="comments-header" id="comments-header">Comments</div>
+                    <div class="comments-list" id="comments-list"></div>
+                    <div class="comment-input" id="comment-input-area">
+                        <div class="comment-input-row">
+                            <input type="text" id="comment-text" placeholder="Write a comment..." maxlength="500" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();postComment();}">
+                            <button class="emoji-toggle-btn" onclick="toggleEmojiPicker()" title="Emoji">&#128578;</button>
+                            <button class="btn-submit comment-send-btn" onclick="postComment()">&#10148;</button>
+                        </div>
+                        <div class="emoji-picker" id="emoji-picker" style="display:none"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="preview-backdrop" onclick="hidePreviewModal()"></div>
+    </div>
+
+    <!-- User management modal -->
+    <div id="users-modal" class="modal" style="display:none">
+        <div class="modal-content users-box">
+            <div class="modal-header">
+                <h3 id="users-modal-title"></h3>
+                <span class="modal-close" onclick="hideUsersModal()">&times;</span>
+            </div>
+            <div class="users-table-wrap">
+                <table class="users-table">
+                    <thead>
+                        <tr><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="users-tbody"></tbody>
+                </table>
+            </div>
+            <div class="add-user-form">
+                <input type="text" id="new-username" placeholder="Username">
+                <input type="password" id="new-password" placeholder="Password">
+                <select id="new-role"><option value="user">user</option><option value="admin">admin</option></select>
+                <button class="btn-submit" onclick="addUser()">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login modal -->
+    <div id="login-modal" class="modal" style="display:none">
+        <div class="modal-content login-box">
+            <div class="modal-header">
+                <h3 id="login-title">Login</h3>
+                <span class="modal-close" onclick="hideLoginModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="login-username" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="hideLoginModal()">Cancel</button>
+                <button class="btn-submit" id="login-submit" onclick="doLogin()">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

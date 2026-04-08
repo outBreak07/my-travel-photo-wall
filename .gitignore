@@ -1,0 +1,21 @@
+# Sensitive config
+.env
+
+# Build output
+main.exe
+*.exe
+
+# Runtime data
+photos/
+data/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
