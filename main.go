@@ -42,7 +42,7 @@ var (
 	authEnabled   = true
 	adminUsername = "admin"
 	adminPassword = "photowall2024"
-	apiBaseURL    = "" // remote backend URL, empty = local
+	apiBaseURL    = ""  // remote backend URL, empty = local
 	corsOrigin    = "*" // CORS allowed origin, * = all
 )
 
@@ -159,6 +159,7 @@ func initDB() {
 			username TEXT UNIQUE NOT NULL,
 			password_hash TEXT NOT NULL,
 			role TEXT NOT NULL DEFAULT 'user',
+			name TEXT NOT NULL DEFAULT '',
 			created_at TEXT NOT NULL
 		)
 	`)
@@ -166,6 +167,9 @@ func initDB() {
 		fmt.Printf("[ERROR] Failed to create users table: %v\n", err)
 		os.Exit(1)
 	}
+	// Migrate: add columns if missing (for existing databases)
+	db.Exec("ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+	db.Exec("ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT ''")
 	// Create comments table
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS comments (
@@ -173,6 +177,7 @@ func initDB() {
 			photo_url TEXT NOT NULL,
 			username TEXT NOT NULL,
 			content TEXT NOT NULL,
+			parent_id INTEGER DEFAULT 0,
 			created_at TEXT NOT NULL
 		)
 	`)
@@ -180,6 +185,8 @@ func initDB() {
 		fmt.Printf("[ERROR] Failed to create comments table: %v\n", err)
 		os.Exit(1)
 	}
+	// Migrate: add parent_id column if missing (for existing databases)
+	db.Exec("ALTER TABLE comments ADD COLUMN parent_id INTEGER DEFAULT 0")
 	fmt.Println("[INFO] Database initialized: " + dbFile)
 }
 
@@ -213,13 +220,33 @@ type User struct {
 	Username     string
 	PasswordHash string
 	Role         string
+	Name         string
+	Avatar       string
 	CreatedAt    string
+}
+
+// DisplayName returns Name if set, otherwise Username
+func (u *User) DisplayName() string {
+	if u.Name != "" {
+		return u.Name
+	}
+	return u.Username
+}
+
+func (u *User) AvatarURL() string {
+	if u.Role == "admin" {
+		return "/static/avatars/admin.svg"
+	}
+	if u.Avatar != "" {
+		return u.Avatar
+	}
+	return "/static/avatars/default-1.svg"
 }
 
 func findUserByName(username string) *User {
 	u := &User{}
-	err := db.QueryRow("SELECT id, username, password_hash, role, created_at FROM users WHERE username = ?", username).
-		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.CreatedAt)
+	err := db.QueryRow("SELECT id, username, password_hash, role, name, COALESCE(avatar,''), created_at FROM users WHERE username = ?", username).
+		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.Name, &u.Avatar, &u.CreatedAt)
 	if err != nil {
 		return nil
 	}
@@ -314,42 +341,55 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok", "session": createSession(user.Username),
-		"username": user.Username, "role": user.Role,
+		"username": user.Username, "role": user.Role, "name": user.Name,
 	})
 }
 
 func handleAuthCheck(w http.ResponseWriter, r *http.Request) {
-	var username, role string
+	var username, role, name, avatar string
 	var loggedIn bool
 	if !authEnabled {
 		loggedIn = true
 		role = "admin"
+		avatar = "/static/avatars/admin.svg"
 	} else {
 		user := getRequestUser(r)
 		if user != nil {
 			loggedIn = true
 			username = user.Username
 			role = user.Role
+			name = user.Name
+			avatar = user.AvatarURL()
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"authEnabled": authEnabled, "loggedIn": loggedIn, "username": username, "role": role,
+		"authEnabled": authEnabled, "loggedIn": loggedIn, "username": username, "role": role, "name": name, "avatar": avatar,
 	})
 }
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	cfg := map[string]interface{}{
 		"apiBaseUrl":  apiBaseURL,
 		"authEnabled": authEnabled,
-	})
+	}
+	// Merge config.json fields (title, version, etc.)
+	if data, err := os.ReadFile("config.json"); err == nil {
+		var extra map[string]interface{}
+		if json.Unmarshal(data, &extra) == nil {
+			for k, v := range extra {
+				cfg[k] = v
+			}
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(cfg)
 }
 
 // ---- User management ----
 
 func handleListUsers(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query("SELECT username, role, created_at FROM users ORDER BY id")
+	rows, err := db.Query("SELECT username, role, name, COALESCE(avatar,''), created_at FROM users ORDER BY id")
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
@@ -358,12 +398,19 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 	type UserInfo struct {
 		Username  string `json:"username"`
 		Role      string `json:"role"`
+		Name      string `json:"name"`
+		Avatar    string `json:"avatar"`
 		CreatedAt string `json:"createdAt"`
 	}
 	var result []UserInfo
 	for rows.Next() {
 		var u UserInfo
-		rows.Scan(&u.Username, &u.Role, &u.CreatedAt)
+		rows.Scan(&u.Username, &u.Role, &u.Name, &u.Avatar, &u.CreatedAt)
+		if u.Role == "admin" {
+			u.Avatar = "/static/avatars/admin.svg"
+		} else if u.Avatar == "" {
+			u.Avatar = "/static/avatars/default-1.svg"
+		}
 		result = append(result, u)
 	}
 	if result == nil {
@@ -382,6 +429,7 @@ func handleAddUser(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 		Role     string `json:"role"`
+		Name     string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
@@ -395,8 +443,8 @@ func handleAddUser(w http.ResponseWriter, r *http.Request) {
 		req.Role = "user"
 	}
 	_, err := db.Exec(
-		"INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
-		req.Username, hashPassword(req.Password), req.Role, time.Now().Format("2006-01-02 15:04:05"),
+		"INSERT INTO users (username, password_hash, role, name, created_at) VALUES (?, ?, ?, ?, ?)",
+		req.Username, hashPassword(req.Password), req.Role, req.Name, time.Now().Format("2006-01-02 15:04:05"),
 	)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -462,6 +510,132 @@ func handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+func handleUpdateUserName(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Username string `json:"username"`
+		Name     string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Username == "" {
+		http.Error(w, "username required", http.StatusBadRequest)
+		return
+	}
+	res, _ := db.Exec("UPDATE users SET name = ? WHERE username = ?", req.Name, req.Username)
+	if n, _ := res.RowsAffected(); n == 0 {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// ---- Avatar handlers ----
+
+// Default avatars available for non-admin users
+var defaultAvatars = []string{
+	"/static/avatars/default-1.svg",
+	"/static/avatars/default-2.svg",
+	"/static/avatars/default-3.svg",
+	"/static/avatars/default-4.svg",
+	"/static/avatars/default-5.svg",
+	"/static/avatars/default-6.svg",
+}
+
+func handleAvatarList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"defaults": defaultAvatars,
+		"admin":    "/static/avatars/admin.svg",
+	})
+}
+
+func handleSetAvatar(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	user := getRequestUser(r)
+	if user == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if user.Role == "admin" {
+		http.Error(w, "admin avatar cannot be changed", http.StatusBadRequest)
+		return
+	}
+	var req struct {
+		Avatar string `json:"avatar"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	// Validate: must be one of the default avatars or a custom uploaded one
+	valid := false
+	for _, a := range defaultAvatars {
+		if req.Avatar == a {
+			valid = true
+			break
+		}
+	}
+	if !valid && !strings.HasPrefix(req.Avatar, "/avatars/") {
+		http.Error(w, "invalid avatar", http.StatusBadRequest)
+		return
+	}
+	db.Exec("UPDATE users SET avatar = ? WHERE username = ?", req.Avatar, user.Username)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func handleUploadAvatar(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	user := getRequestUser(r)
+	if user == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if user.Role == "admin" {
+		http.Error(w, "admin avatar cannot be changed", http.StatusBadRequest)
+		return
+	}
+	r.ParseMultipartForm(2 << 20) // 2MB
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "file required", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+	if !allowed[ext] {
+		http.Error(w, "invalid image type", http.StatusBadRequest)
+		return
+	}
+	os.MkdirAll("avatars", 0755)
+	fname := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+	dst, err := os.Create(filepath.Join("avatars", fname))
+	if err != nil {
+		http.Error(w, "failed to save", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+	io.Copy(dst, file)
+	avatarURL := "/avatars/" + fname
+	db.Exec("UPDATE users SET avatar = ? WHERE username = ?", avatarURL, user.Username)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "avatar": avatarURL})
+}
+
 // ---- Comment handlers ----
 
 func handleGetComments(w http.ResponseWriter, r *http.Request) {
@@ -470,22 +644,41 @@ func handleGetComments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "photo param required", http.StatusBadRequest)
 		return
 	}
-	rows, err := db.Query("SELECT id, username, content, created_at FROM comments WHERE photo_url = ? ORDER BY id ASC", photoURL)
+	rows, err := db.Query(`
+		SELECT c.id, c.username, COALESCE(u.name, ''), COALESCE(u.role, ''), COALESCE(u.avatar, ''), c.content, c.parent_id, c.created_at
+		FROM comments c LEFT JOIN users u ON c.username = u.username
+		WHERE c.photo_url = ? ORDER BY c.id ASC`, photoURL)
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
 	type Comment struct {
-		ID        int    `json:"id"`
-		Username  string `json:"username"`
-		Content   string `json:"content"`
-		CreatedAt string `json:"createdAt"`
+		ID          int    `json:"id"`
+		Username    string `json:"username"`
+		DisplayName string `json:"displayName"`
+		Avatar      string `json:"avatar"`
+		Content     string `json:"content"`
+		ParentID    int    `json:"parentId"`
+		CreatedAt   string `json:"createdAt"`
 	}
 	var result []Comment
 	for rows.Next() {
 		var c Comment
-		rows.Scan(&c.ID, &c.Username, &c.Content, &c.CreatedAt)
+		var name, role, avatar string
+		rows.Scan(&c.ID, &c.Username, &name, &role, &avatar, &c.Content, &c.ParentID, &c.CreatedAt)
+		if name != "" {
+			c.DisplayName = name
+		} else {
+			c.DisplayName = c.Username
+		}
+		if role == "admin" {
+			c.Avatar = "/static/avatars/admin.svg"
+		} else if avatar != "" {
+			c.Avatar = avatar
+		} else {
+			c.Avatar = "/static/avatars/default-1.svg"
+		}
 		result = append(result, c)
 	}
 	if result == nil {
@@ -503,6 +696,7 @@ func handleAddComment(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		PhotoURL string `json:"photoUrl"`
 		Content  string `json:"content"`
+		ParentID int    `json:"parentId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
@@ -514,12 +708,14 @@ func handleAddComment(w http.ResponseWriter, r *http.Request) {
 	}
 	user := getRequestUser(r)
 	username := "anonymous"
+	displayName := "anonymous"
 	if user != nil {
 		username = user.Username
+		displayName = user.DisplayName()
 	}
 	now := time.Now().Format("2006-01-02 15:04:05")
-	res, err := db.Exec("INSERT INTO comments (photo_url, username, content, created_at) VALUES (?, ?, ?, ?)",
-		req.PhotoURL, username, strings.TrimSpace(req.Content), now)
+	res, err := db.Exec("INSERT INTO comments (photo_url, username, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)",
+		req.PhotoURL, username, strings.TrimSpace(req.Content), req.ParentID, now)
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
@@ -527,7 +723,7 @@ func handleAddComment(w http.ResponseWriter, r *http.Request) {
 	id, _ := res.LastInsertId()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "ok", "id": id, "username": username, "createdAt": now,
+		"status": "ok", "id": id, "username": username, "displayName": displayName, "parentId": req.ParentID, "createdAt": now,
 	})
 }
 
@@ -568,6 +764,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
 	mux.Handle("/photos/", http.StripPrefix("/photos/", http.FileServer(http.Dir(photosDir))))
+	mux.Handle("/avatars/", http.StripPrefix("/avatars/", http.FileServer(http.Dir("avatars"))))
 
 	// Public
 	mux.HandleFunc("/api/config", handleConfig)
@@ -575,6 +772,11 @@ func main() {
 	mux.HandleFunc("/api/provinces", handleListProvinces)
 	mux.HandleFunc("/api/auth/login", handleLogin)
 	mux.HandleFunc("/api/auth/check", handleAuthCheck)
+
+	// Avatars
+	mux.HandleFunc("/api/avatars", handleAvatarList)
+	mux.HandleFunc("/api/avatar/set", requireAuth(handleSetAvatar))
+	mux.HandleFunc("/api/avatar/upload", requireAuth(handleUploadAvatar))
 
 	// Comments (get is public, post requires login, delete requires admin)
 	mux.HandleFunc("/api/comments", handleGetComments)
@@ -592,6 +794,7 @@ func main() {
 	mux.HandleFunc("/api/admin/users/add", requireAdminRole(handleAddUser))
 	mux.HandleFunc("/api/admin/users/delete", requireAdminRole(handleDeleteUser))
 	mux.HandleFunc("/api/admin/users/reset-password", requireAdminRole(handleResetPassword))
+	mux.HandleFunc("/api/admin/users/update-name", requireAdminRole(handleUpdateUserName))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -873,7 +1076,9 @@ func handleListPhotos(w http.ResponseWriter, r *http.Request) {
 	} else {
 		provs, _ := os.ReadDir(photosDir)
 		for _, p := range provs {
-			if !p.IsDir() { continue }
+			if !p.IsDir() {
+				continue
+			}
 			provDir := filepath.Join(photosDir, p.Name())
 			provMeta := loadMeta(provDir)
 			entries, _ := os.ReadDir(provDir)
@@ -901,12 +1106,21 @@ func handleListPhotos(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleListProvinces(w http.ResponseWriter, r *http.Request) {
-	type CityCount struct{ Name string `json:"name"`; Count int `json:"count"` }
-	type ProvinceInfo struct{ Name string `json:"name"`; Count int `json:"count"`; Cities []CityCount `json:"cities"` }
+	type CityCount struct {
+		Name  string `json:"name"`
+		Count int    `json:"count"`
+	}
+	type ProvinceInfo struct {
+		Name   string      `json:"name"`
+		Count  int         `json:"count"`
+		Cities []CityCount `json:"cities"`
+	}
 	var result []ProvinceInfo
 	provs, _ := os.ReadDir(photosDir)
 	for _, p := range provs {
-		if !p.IsDir() { continue }
+		if !p.IsDir() {
+			continue
+		}
 		pi := ProvinceInfo{Name: p.Name()}
 		entries, _ := os.ReadDir(filepath.Join(photosDir, p.Name()))
 		pdc := 0
@@ -914,56 +1128,145 @@ func handleListProvinces(w http.ResponseWriter, r *http.Request) {
 			if e.IsDir() {
 				ces, _ := os.ReadDir(filepath.Join(photosDir, p.Name(), e.Name()))
 				c := 0
-				for _, ce := range ces { if !ce.IsDir() && ce.Name() != "meta.json" { c++ } }
-				if c > 0 { pi.Cities = append(pi.Cities, CityCount{Name: e.Name(), Count: c}); pi.Count += c }
-			} else if e.Name() != "meta.json" { pdc++ }
+				for _, ce := range ces {
+					if !ce.IsDir() && ce.Name() != "meta.json" {
+						c++
+					}
+				}
+				if c > 0 {
+					pi.Cities = append(pi.Cities, CityCount{Name: e.Name(), Count: c})
+					pi.Count += c
+				}
+			} else if e.Name() != "meta.json" {
+				pdc++
+			}
 		}
-		if pdc > 0 { pi.Cities = append([]CityCount{{Count: pdc}}, pi.Cities...); pi.Count += pdc }
-		if pi.Count > 0 { result = append(result, pi) }
+		if pdc > 0 {
+			pi.Cities = append([]CityCount{{Count: pdc}}, pi.Cities...)
+			pi.Count += pdc
+		}
+		if pi.Count > 0 {
+			result = append(result, pi)
+		}
 	}
-	if result == nil { result = []ProvinceInfo{} }
+	if result == nil {
+		result = []ProvinceInfo{}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }
 
 func handleUpdateDescription(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { http.Error(w, "POST only", http.StatusMethodNotAllowed); return }
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
 	var req struct{ Province, City, Filename, Description string }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { http.Error(w, "invalid JSON", http.StatusBadRequest); return }
-	if req.Province == "" || req.Filename == "" { http.Error(w, "province and filename required", http.StatusBadRequest); return }
-	for _, v := range []string{req.Province, req.City, req.Filename} { if strings.Contains(v, "..") || strings.Contains(v, "/") || strings.Contains(v, "\\") { http.Error(w, "invalid parameter", http.StatusBadRequest); return } }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Province == "" || req.Filename == "" {
+		http.Error(w, "province and filename required", http.StatusBadRequest)
+		return
+	}
+	for _, v := range []string{req.Province, req.City, req.Filename} {
+		if strings.Contains(v, "..") || strings.Contains(v, "/") || strings.Contains(v, "\\") {
+			http.Error(w, "invalid parameter", http.StatusBadRequest)
+			return
+		}
+	}
 	var dir string
-	if req.City != "" { dir = filepath.Join(photosDir, req.Province, req.City) } else { dir = filepath.Join(photosDir, req.Province) }
-	meta := loadMeta(dir); meta[req.Filename] = MetaEntry{Description: req.Description}; saveMeta(dir, meta)
-	w.Header().Set("Content-Type", "application/json"); json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if req.City != "" {
+		dir = filepath.Join(photosDir, req.Province, req.City)
+	} else {
+		dir = filepath.Join(photosDir, req.Province)
+	}
+	meta := loadMeta(dir)
+	meta[req.Filename] = MetaEntry{Description: req.Description}
+	saveMeta(dir, meta)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func handleDelete(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { http.Error(w, "POST only", http.StatusMethodNotAllowed); return }
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
 	var req struct{ Province, City, Filename string }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { http.Error(w, "invalid JSON", http.StatusBadRequest); return }
-	if req.Province == "" || req.Filename == "" { http.Error(w, "province and filename required", http.StatusBadRequest); return }
-	for _, v := range []string{req.Province, req.City, req.Filename} { if strings.Contains(v, "..") || strings.Contains(v, "/") || strings.Contains(v, "\\") { http.Error(w, "invalid parameter", http.StatusBadRequest); return } }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Province == "" || req.Filename == "" {
+		http.Error(w, "province and filename required", http.StatusBadRequest)
+		return
+	}
+	for _, v := range []string{req.Province, req.City, req.Filename} {
+		if strings.Contains(v, "..") || strings.Contains(v, "/") || strings.Contains(v, "\\") {
+			http.Error(w, "invalid parameter", http.StatusBadRequest)
+			return
+		}
+	}
 	var dir string
-	if req.City != "" { dir = filepath.Join(photosDir, req.Province, req.City) } else { dir = filepath.Join(photosDir, req.Province) }
-	if err := os.Remove(filepath.Join(dir, req.Filename)); err != nil { http.Error(w, "delete failed", http.StatusInternalServerError); return }
-	meta := loadMeta(dir); delete(meta, req.Filename); saveMeta(dir, meta)
-	w.Header().Set("Content-Type", "application/json"); json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if req.City != "" {
+		dir = filepath.Join(photosDir, req.Province, req.City)
+	} else {
+		dir = filepath.Join(photosDir, req.Province)
+	}
+	if err := os.Remove(filepath.Join(dir, req.Filename)); err != nil {
+		http.Error(w, "delete failed", http.StatusInternalServerError)
+		return
+	}
+	meta := loadMeta(dir)
+	delete(meta, req.Filename)
+	saveMeta(dir, meta)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func handleMove(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { http.Error(w, "POST only", http.StatusMethodNotAllowed); return }
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
 	var req struct{ Province, OldCity, NewCity, Filename string }
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { http.Error(w, "invalid JSON", http.StatusBadRequest); return }
-	if req.Province == "" || req.Filename == "" || req.NewCity == "" { http.Error(w, "province, filename, newCity required", http.StatusBadRequest); return }
-	for _, v := range []string{req.Province, req.OldCity, req.NewCity, req.Filename} { if strings.Contains(v, "..") || strings.Contains(v, "/") || strings.Contains(v, "\\") { http.Error(w, "invalid parameter", http.StatusBadRequest); return } }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Province == "" || req.Filename == "" || req.NewCity == "" {
+		http.Error(w, "province, filename, newCity required", http.StatusBadRequest)
+		return
+	}
+	for _, v := range []string{req.Province, req.OldCity, req.NewCity, req.Filename} {
+		if strings.Contains(v, "..") || strings.Contains(v, "/") || strings.Contains(v, "\\") {
+			http.Error(w, "invalid parameter", http.StatusBadRequest)
+			return
+		}
+	}
 	var oldDir string
-	if req.OldCity != "" { oldDir = filepath.Join(photosDir, req.Province, req.OldCity) } else { oldDir = filepath.Join(photosDir, req.Province) }
-	newDir := filepath.Join(photosDir, req.Province, req.NewCity); os.MkdirAll(newDir, 0755)
-	if err := os.Rename(filepath.Join(oldDir, req.Filename), filepath.Join(newDir, req.Filename)); err != nil { http.Error(w, "move failed", http.StatusInternalServerError); return }
-	oldMeta := loadMeta(oldDir); entry := oldMeta[req.Filename]; delete(oldMeta, req.Filename); saveMeta(oldDir, oldMeta)
-	newMeta := loadMeta(newDir); newMeta[req.Filename] = entry; saveMeta(newDir, newMeta)
-	w.Header().Set("Content-Type", "application/json"); json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if req.OldCity != "" {
+		oldDir = filepath.Join(photosDir, req.Province, req.OldCity)
+	} else {
+		oldDir = filepath.Join(photosDir, req.Province)
+	}
+	newDir := filepath.Join(photosDir, req.Province, req.NewCity)
+	os.MkdirAll(newDir, 0755)
+	if err := os.Rename(filepath.Join(oldDir, req.Filename), filepath.Join(newDir, req.Filename)); err != nil {
+		http.Error(w, "move failed", http.StatusInternalServerError)
+		return
+	}
+	oldMeta := loadMeta(oldDir)
+	entry := oldMeta[req.Filename]
+	delete(oldMeta, req.Filename)
+	saveMeta(oldDir, oldMeta)
+	newMeta := loadMeta(newDir)
+	newMeta[req.Filename] = entry
+	saveMeta(newDir, newMeta)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func openBrowser(url string) {

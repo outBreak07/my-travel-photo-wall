@@ -12,7 +12,7 @@
 <body>
     <div id="app">
         <div id="header">
-            <h1 id="title" data-i18n="title">China Photo Wall</h1>
+            <h1 id="title">China Photo Wall</h1>
             <div id="breadcrumb">
                 <span id="nav-home" class="nav-link active" onclick="goHome()" data-i18n="all">All</span>
                 <span id="nav-province" class="nav-link" style="display:none"></span>
@@ -28,6 +28,7 @@
                 </div>
                 <button id="lang-toggle" onclick="toggleLang()">中文</button>
                 <button id="users-btn" style="display:none" onclick="showUsersModal()"></button>
+                <img id="avatar-btn" class="header-avatar" style="display:none" onclick="showAvatarPicker()" src="/static/avatars/default-1.svg" alt="" title="">
                 <button id="auth-btn" onclick="onAuthBtnClick()">Login</button>
             </div>
         </div>
@@ -129,7 +130,7 @@
                     <div class="comments-list" id="comments-list"></div>
                     <div class="comment-input" id="comment-input-area">
                         <div class="comment-input-row">
-                            <input type="text" id="comment-text" placeholder="Write a comment..." maxlength="500" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();postComment();}">
+                            <input type="text" id="comment-text" data-i18n-placeholder="commentPlaceholder" placeholder="Write a comment..." maxlength="500" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();postComment();}">
                             <button class="emoji-toggle-btn" onclick="toggleEmojiPicker()" title="Emoji">&#128578;</button>
                             <button class="btn-submit comment-send-btn" onclick="postComment()">&#10148;</button>
                         </div>
@@ -151,40 +152,58 @@
             <div class="users-table-wrap">
                 <table class="users-table">
                     <thead>
-                        <tr><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr>
+                        <tr><th data-i18n="thUsername">Username</th><th data-i18n="thName">Name</th><th data-i18n="thRole">Role</th><th data-i18n="thCreated">Created</th><th data-i18n="thActions">Actions</th></tr>
                     </thead>
                     <tbody id="users-tbody"></tbody>
                 </table>
             </div>
             <div class="add-user-form">
-                <input type="text" id="new-username" placeholder="Username">
-                <input type="password" id="new-password" placeholder="Password">
+                <input type="text" id="new-username" data-i18n-placeholder="thUsername" placeholder="Username" autocomplete="off">
+                <input type="text" id="new-name" data-i18n-placeholder="nameOptional" placeholder="Name (optional)" autocomplete="off">
+                <input type="password" id="new-password" data-i18n-placeholder="password" placeholder="Password" autocomplete="new-password">
                 <select id="new-role"><option value="user">user</option><option value="admin">admin</option></select>
-                <button class="btn-submit" onclick="addUser()">Add</button>
+                <button class="btn-submit" onclick="addUser()" data-i18n="addBtn">Add</button>
             </div>
         </div>
     </div>
 
     <!-- Login modal -->
     <div id="login-modal" class="modal" style="display:none">
-        <div class="modal-content login-box">
+        <form class="modal-content login-box" autocomplete="off" onsubmit="event.preventDefault();doLogin();">
             <div class="modal-header">
-                <h3 id="login-title">Login</h3>
+                <h3 id="login-title" data-i18n="login">Login</h3>
                 <span class="modal-close" onclick="hideLoginModal()">&times;</span>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" id="login-username" autocomplete="username">
+                    <label data-i18n="username">Username</label>
+                    <input type="text" id="login-username" autocomplete="off">
                 </div>
                 <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="login-password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+                    <label data-i18n="password">Password</label>
+                    <input type="password" id="login-password" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()">
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn-cancel" onclick="hideLoginModal()">Cancel</button>
-                <button class="btn-submit" id="login-submit" onclick="doLogin()">Login</button>
+                <button type="button" class="btn-cancel" onclick="hideLoginModal()" data-i18n="cancel">Cancel</button>
+                <button type="button" class="btn-submit" id="login-submit" onclick="doLogin()" data-i18n="loginBtn">Login</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Avatar picker modal -->
+    <div id="avatar-modal" class="modal" style="display:none">
+        <div class="modal-content avatar-box">
+            <div class="modal-header">
+                <h3 data-i18n="avatarTitle">Choose Avatar</h3>
+                <span class="modal-close" onclick="hideAvatarPicker()">&times;</span>
+            </div>
+            <div class="avatar-grid" id="avatar-grid"></div>
+            <div class="avatar-upload-row">
+                <label class="btn-submit avatar-upload-btn">
+                    <span data-i18n="uploadCustomAvatar">Upload Custom</span>
+                    <input type="file" id="avatar-file" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
+                </label>
             </div>
         </div>
     </div>

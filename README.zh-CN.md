@@ -9,6 +9,16 @@
 ![ECharts](https://img.shields.io/badge/ECharts-5.x-AA344D?logo=apache-echarts&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+## 📷 效果展示
+
+| 地图总览 | 城市级缩放 |
+|:---:|:---:|
+| ![地图总览](docs/images/map-overview.png) | ![城市缩放](docs/images/map-zoom-overview.png) |
+
+| 照片浏览 | 上传管理 |
+|:---:|:---:|
+| ![照片浏览](docs/images/photo-viewer.png) | ![上传](docs/images/upload.png) |
+
 ## ✨ 主要功能
 
 ### 🗺️ 交互式地图

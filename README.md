@@ -9,6 +9,16 @@ Display your photo journey on an interactive China map. Upload photos tagged wit
 ![ECharts](https://img.shields.io/badge/ECharts-5.x-AA344D?logo=apache-echarts&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+## 📷 Screenshots
+
+| Map Overview | Zoom into Cities |
+|:---:|:---:|
+| ![Map Overview](docs/images/map-overview.png) | ![Map Zoom](docs/images/map-zoom-overview.png) |
+
+| Photo Viewer | Upload & Management |
+|:---:|:---:|
+| ![Photo Viewer](docs/images/photo-viewer.png) | ![Upload](docs/images/upload.png) |
+
 ## ✨ Key Features
 
 ### 🗺️ Interactive Map

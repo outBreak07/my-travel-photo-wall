@@ -70,46 +70,120 @@ const PROVINCE_EN = {
 // ============================================================
 const TRANSLATIONS = {
     zh: {
-        title: '中国照片墙', all: '全部', photos: '照片',
+        // Header & nav
+        all: '全部', photos: '照片', langSwitch: 'EN',
+        // Upload
         upload: '+ 上传', uploadTitle: '上传照片',
         province: '省份', selectProvince: '选择省份...',
         city: '城市', selectProvinceFirst: '请先选择省份',
-        loading: '加载中...', loadFailed: '加载失败',
         description: '描述（可选）', descPlaceholder: '为照片添加描述...',
         images: '图片', cancel: '取消', uploadBtn: '上传', uploading: '上传中...',
         noPhotos: '暂无照片，快去上传吧！', zoomHint: '滚动缩放以探索城市',
         uploadFailed: '上传失败', selectProvinceAlert: '请选择省份',
         selectImagesAlert: '请选择图片', photo_s: '张照片',
-        editDesc: '编辑', save: '保存', saving: '保存中...', saved: '已保存',
-        langSwitch: 'EN', deleteBtn: '删除', deleteConfirm: '确定要删除这张照片吗？',
         uploadSuccessN: '张照片上传成功', uncategorized: '未分类',
-        defaultCapital: '默认上传到省会城市', deleted: '已删除',
+        defaultCapital: '默认上传到省会城市',
+        // Photo actions
+        editDesc: '编辑', save: '保存', saving: '保存中...', saved: '已保存',
+        deleteBtn: '删除', deleteConfirm: '确定要删除这张照片吗？', deleted: '已删除',
+        loading: '加载中...', loadFailed: '加载失败',
+        // Auth
+        login: '登录', logout: '退出', loginBtn: '登录',
+        username: '用户名', password: '密码',
+        loginSuccess: '登录成功', loginFailed: '登录失败',
+        invalidCredentials: '账号或密码错误', loggedOut: '已退出登录',
+        pleaseLogin: '请先登录',
+        // User management
+        manage: '管理', userManagement: '用户管理',
+        thUsername: '用户名', thName: '名称', thRole: '角色', thCreated: '创建时间', thActions: '操作',
+        nameOptional: '名称（可选）', addBtn: '添加',
+        usernamePasswordRequired: '请填写用户名和密码',
+        userAdded: '用户已添加', passwordResetDone: '密码已重置',
+        deleteUserConfirm: '确定删除用户 ', userDeleted: '已删除',
+        nameUpdated: '名称已更新',
+        editNameTitle: '编辑名称', resetPasswordTitle: '重置密码',
+        promptNewPassword: '请输入 {0} 的新密码:',
+        promptDisplayName: '请输入 {0} 的显示名称（留空则显示账号名）:',
+        // Comments
+        comments: '评论', noComments: '暂无评论', commentPlaceholder: '写评论...',
+        reply: '回复', replyTo: '回复 ', replyingTo: '回复', replyVerb: '回复',
+        deleteCommentConfirm: '删除此评论？',
+        showMoreReplies: '展开剩余 {0} 条回复',
+        // Avatar
+        avatarTitle: '选择头像', uploadCustomAvatar: '上传自定义',
+        avatarChanged: '头像已更新', adminAvatarLocked: '管理员头像不可更改',
     },
     en: {
-        title: 'China Photo Wall', all: 'All', photos: 'Photos',
+        // Header & nav
+        all: 'All', photos: 'Photos', langSwitch: '中文',
+        // Upload
         upload: '+ Upload', uploadTitle: 'Upload Photos',
         province: 'Province', selectProvince: 'Select province...',
         city: 'City', selectProvinceFirst: 'Select province first',
-        loading: 'Loading...', loadFailed: 'Load failed',
         description: 'Description (optional)', descPlaceholder: 'Add a description...',
         images: 'Images', cancel: 'Cancel', uploadBtn: 'Upload', uploading: 'Uploading...',
         noPhotos: 'No photos yet. Upload some!', zoomHint: 'Scroll to zoom in and explore cities',
         uploadFailed: 'Upload failed', selectProvinceAlert: 'Please select a province',
         selectImagesAlert: 'Please select images', photo_s: 'photo(s)',
-        editDesc: 'Edit', save: 'Save', saving: 'Saving...', saved: 'Saved',
-        langSwitch: '中文', deleteBtn: 'Delete', deleteConfirm: 'Are you sure you want to delete this photo?',
         uploadSuccessN: ' photo(s) uploaded', uncategorized: 'Uncategorized',
-        defaultCapital: 'Default to capital city', deleted: 'Deleted',
+        defaultCapital: 'Default to capital city',
+        // Photo actions
+        editDesc: 'Edit', save: 'Save', saving: 'Saving...', saved: 'Saved',
+        deleteBtn: 'Delete', deleteConfirm: 'Are you sure you want to delete this photo?', deleted: 'Deleted',
+        loading: 'Loading...', loadFailed: 'Load failed',
+        // Auth
+        login: 'Login', logout: 'Logout', loginBtn: 'Login',
+        username: 'Username', password: 'Password',
+        loginSuccess: 'Login successful', loginFailed: 'Login failed',
+        invalidCredentials: 'Invalid credentials', loggedOut: 'Logged out',
+        pleaseLogin: 'Please login first',
+        // User management
+        manage: 'Manage', userManagement: 'User Management',
+        thUsername: 'Username', thName: 'Name', thRole: 'Role', thCreated: 'Created', thActions: 'Actions',
+        nameOptional: 'Name (optional)', addBtn: 'Add',
+        usernamePasswordRequired: 'Username and password required',
+        userAdded: 'User added', passwordResetDone: 'Password reset',
+        deleteUserConfirm: 'Delete user ', userDeleted: 'Deleted',
+        nameUpdated: 'Name updated',
+        editNameTitle: 'Edit name', resetPasswordTitle: 'Reset password',
+        promptNewPassword: 'Enter new password for {0}:',
+        promptDisplayName: 'Enter display name for {0} (leave empty to show account name):',
+        // Comments
+        comments: 'Comments', noComments: 'No comments yet', commentPlaceholder: 'Write a comment...',
+        reply: 'Reply', replyTo: 'Reply to ', replyingTo: 'Replying to', replyVerb: 'reply',
+        deleteCommentConfirm: 'Delete this comment?',
+        showMoreReplies: 'Show {0} more replies',
+        // Avatar
+        avatarTitle: 'Choose Avatar', uploadCustomAvatar: 'Upload Custom',
+        avatarChanged: 'Avatar updated', adminAvatarLocked: 'Admin avatar cannot be changed',
     }
 };
+const LANG_KEYS = Object.keys(TRANSLATIONS);
 let currentLang = localStorage.getItem('photowall-lang') || 'zh';
-function t(key) { return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || key; }
-function toggleLang() { currentLang = currentLang === 'en' ? 'zh' : 'en'; localStorage.setItem('photowall-lang', currentLang); updateAllText(); }
+function t(key, ...args) {
+    let s = (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || key;
+    args.forEach((v, i) => { s = s.replace('{' + i + '}', v); });
+    return s;
+}
+function toggleLang() {
+    const idx = LANG_KEYS.indexOf(currentLang);
+    currentLang = LANG_KEYS[(idx + 1) % LANG_KEYS.length];
+    localStorage.setItem('photowall-lang', currentLang);
+    updateAllText();
+}
+let appTitle = '';
+let appVersion = '';
+function updateTitle() {
+    const title = appTitle || 'Photo Wall';
+    const full = appVersion ? title + ' v' + appVersion : title;
+    document.getElementById('title').textContent = full;
+    document.title = full;
+}
 function updateAllText() {
     document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.getAttribute('data-i18n')));
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => el.placeholder = t(el.getAttribute('data-i18n-placeholder')));
     document.getElementById('lang-toggle').textContent = t('langSwitch');
-    updateBreadcrumb(); updateThemeDotTitles();
+    updateTitle(); updateAuthUI(); updateBreadcrumb(); updateThemeDotTitles();
     if (chart) chart.setOption({ series: [{ label: { formatter: p => currentLang === 'en' ? (PROVINCE_EN[p.name] || p.name) : p.name } }] });
     loadPhotosPanel(currentProvince || undefined, currentCity || undefined);
 }
@@ -132,6 +206,8 @@ function updateThemeDotTitles() { document.querySelectorAll('.theme-dot').forEac
 // ============================================================
 let isLoggedIn = false;
 let userRole = '';
+let loggedInUsername = '';
+let loggedInAvatar = '';
 let authEnabled = true;
 let authSession = localStorage.getItem('photowall-session') || '';
 let API = ''; // API base URL, empty = same origin
@@ -143,6 +219,9 @@ async function loadConfig() {
         const resp = await fetch('/api/config');
         const cfg = await resp.json();
         if (cfg.apiBaseUrl) API = cfg.apiBaseUrl;
+        if (cfg.title) appTitle = cfg.title;
+        if (cfg.version) appVersion = cfg.version;
+        updateTitle();
     } catch (e) {}
 }
 
@@ -155,7 +234,9 @@ async function checkAuth() {
         authEnabled = data.authEnabled;
         isLoggedIn = data.loggedIn;
         userRole = data.role || '';
-    } catch (e) { isLoggedIn = false; userRole = ''; }
+        loggedInUsername = data.username || '';
+        loggedInAvatar = data.avatar || '';
+    } catch (e) { isLoggedIn = false; userRole = ''; loggedInUsername = ''; loggedInAvatar = ''; }
     updateAuthUI();
 }
 
@@ -168,8 +249,13 @@ function updateAuthUI() {
         if (usersBtn) usersBtn.style.display = 'none';
     } else {
         loginBtn.style.display = '';
-        loginBtn.textContent = isLoggedIn ? (currentLang === 'zh' ? '退出' : 'Logout') : (currentLang === 'zh' ? '登录' : 'Login');
-        if (usersBtn) { usersBtn.style.display = isAdmin() ? '' : 'none'; usersBtn.textContent = currentLang === 'zh' ? '管理' : 'Manage'; }
+        loginBtn.textContent = isLoggedIn ? t('logout') : t('login');
+        if (usersBtn) { usersBtn.style.display = isAdmin() ? '' : 'none'; usersBtn.textContent = t('manage'); }
+    }
+    const avatarBtn = document.getElementById('avatar-btn');
+    if (avatarBtn) {
+        avatarBtn.style.display = isLoggedIn ? '' : 'none';
+        if (isLoggedIn && loggedInAvatar) avatarBtn.src = loggedInAvatar;
     }
     scheduleOverlay();
     loadPhotosPanel(currentProvince || undefined, currentCity || undefined);
@@ -178,9 +264,9 @@ function updateAuthUI() {
 function onAuthBtnClick() {
     if (isLoggedIn) {
         authSession = ''; localStorage.removeItem('photowall-session');
-        isLoggedIn = false; userRole = '';
+        isLoggedIn = false; userRole = ''; loggedInUsername = ''; loggedInAvatar = '';
         updateAuthUI();
-        showToast(currentLang === 'zh' ? '已退出登录' : 'Logged out');
+        showToast(t('loggedOut'));
     } else {
         document.getElementById('login-modal').style.display = 'flex';
         document.getElementById('login-username').focus();
@@ -211,14 +297,15 @@ async function doLogin() {
             localStorage.setItem('photowall-session', authSession);
             isLoggedIn = true;
             userRole = data.role || 'user';
+            loggedInUsername = username;
             hideLoginModal();
             updateAuthUI();
-            showToast(currentLang === 'zh' ? '登录成功' : 'Login successful');
+            showToast(t('loginSuccess'));
         } else {
-            showToast(currentLang === 'zh' ? '账号或密码错误' : 'Invalid credentials');
+            showToast(t('invalidCredentials'));
         }
     } catch (e) {
-        showToast(currentLang === 'zh' ? '登录失败' : 'Login failed');
+        showToast(t('loginFailed'));
     }
     btn.disabled = false;
 }
@@ -237,53 +324,54 @@ function authUploadHeaders() {
 // ---- User management ----
 function showUsersModal() {
     document.getElementById('users-modal').style.display = 'flex';
-    document.getElementById('users-modal-title').textContent = currentLang === 'zh' ? '用户管理' : 'User Management';
+    document.getElementById('users-modal-title').textContent = t('userManagement');
     loadUsersList();
 }
 function hideUsersModal() { document.getElementById('users-modal').style.display = 'none'; }
 
 async function loadUsersList() {
     const tbody = document.getElementById('users-tbody');
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">Loading...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Loading...</td></tr>`;
     try {
         const resp = await fetch(api('/api/admin/users'), { headers: authHeaders() });
         const users = await resp.json();
-        if (users.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">No users</td></tr>`; return; }
-        const zh = currentLang === 'zh';
+        if (users.length === 0) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">No users</td></tr>`; return; }
         tbody.innerHTML = users.map(u => {
-            const name = escapeHTML(u.username);
+            const uname = escapeHTML(u.username);
+            const displayName = escapeHTML(u.name || '');
             return `<tr>
-                <td><b>${name}</b></td>
+                <td><b>${uname}</b></td>
+                <td class="user-name-cell"><span class="user-name-text">${displayName || '<span style="color:var(--text-muted)">-</span>'}</span> <button class="user-action-btn user-name-edit" onclick="promptEditName('${uname}', '${displayName}')" title="${t('editNameTitle')}"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></td>
                 <td><span class="user-role-tag">${u.role}</span></td>
                 <td class="user-date">${u.createdAt}</td>
                 <td class="user-actions">
-                    <button class="user-action-btn" onclick="promptResetPassword('${name}')" title="${zh?'重置密码':'Reset password'}">
+                    <button class="user-action-btn" onclick="promptResetPassword('${uname}')" title="${t('resetPasswordTitle')}">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     </button>
-                    <button class="user-action-btn user-action-danger" onclick="deleteUser('${name}')" title="${zh?'删除':'Delete'}">
+                    <button class="user-action-btn user-action-danger" onclick="deleteUser('${uname}')" title="${t('deleteBtn')}">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                     </button>
                 </td>
             </tr>`;
         }).join('');
-    } catch (e) { tbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger);padding:20px">Failed to load</td></tr>`; }
+    } catch (e) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:20px">Failed to load</td></tr>`; }
 }
 
 async function addUser() {
     const u = document.getElementById('new-username').value.trim();
+    const n = document.getElementById('new-name').value.trim();
     const p = document.getElementById('new-password').value;
     const r = document.getElementById('new-role').value;
-    if (!u || !p) { showToast(currentLang === 'zh' ? '请填写用户名和密码' : 'Username and password required'); return; }
+    if (!u || !p) { showToast(t('usernamePasswordRequired')); return; }
     try {
-        const resp = await fetch(api('/api/admin/users/add'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ username: u, password: p, role: r }) });
-        if (resp.ok) { document.getElementById('new-username').value = ''; document.getElementById('new-password').value = ''; showToast(currentLang === 'zh' ? '用户已添加' : 'User added'); loadUsersList(); }
+        const resp = await fetch(api('/api/admin/users/add'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ username: u, password: p, role: r, name: n }) });
+        if (resp.ok) { document.getElementById('new-username').value = ''; document.getElementById('new-name').value = ''; document.getElementById('new-password').value = ''; showToast(t('userAdded')); loadUsersList(); }
         else { const d = await resp.json(); showToast(d.error || 'Failed'); }
     } catch (e) { showToast('Failed'); }
 }
 
 function promptResetPassword(username) {
-    const zh = currentLang === 'zh';
-    const newPwd = prompt(zh ? '请输入 ' + username + ' 的新密码:' : 'Enter new password for ' + username + ':');
+    const newPwd = prompt(t('promptNewPassword', username));
     if (!newPwd) return;
     resetPassword(username, newPwd);
 }
@@ -291,18 +379,93 @@ function promptResetPassword(username) {
 async function resetPassword(username, newPassword) {
     try {
         const resp = await fetch(api('/api/admin/users/reset-password'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ username, newPassword }) });
-        if (resp.ok) { showToast(currentLang === 'zh' ? '密码已重置' : 'Password reset'); }
+        if (resp.ok) { showToast(t('passwordResetDone')); }
         else { const d = await resp.json(); showToast(d.error || 'Failed'); }
     } catch (e) { showToast('Failed'); }
 }
 
 async function deleteUser(username) {
-    if (!confirm((currentLang === 'zh' ? '确定删除用户 ' : 'Delete user ') + username + '?')) return;
+    if (!confirm(t('deleteUserConfirm') + username + '?')) return;
     try {
         const resp = await fetch(api('/api/admin/users/delete'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ username }) });
-        if (resp.ok) { showToast(currentLang === 'zh' ? '已删除' : 'Deleted'); loadUsersList(); }
+        if (resp.ok) { showToast(t('userDeleted')); loadUsersList(); }
         else { const d = await resp.json(); showToast(d.error || 'Failed'); }
     } catch (e) { showToast('Failed'); }
+}
+
+function promptEditName(username, currentName) {
+    const newName = prompt(t('promptDisplayName', username), currentName);
+    if (newName === null) return;
+    updateUserName(username, newName.trim());
+}
+
+async function updateUserName(username, name) {
+    try {
+        const resp = await fetch(api('/api/admin/users/update-name'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ username, name }) });
+        if (resp.ok) { showToast(t('nameUpdated')); loadUsersList(); }
+        else { const d = await resp.json(); showToast(d.error || 'Failed'); }
+    } catch (e) { showToast('Failed'); }
+}
+
+// ============================================================
+// Avatar picker
+// ============================================================
+
+async function showAvatarPicker() {
+    if (isAdmin()) { showToast(t('adminAvatarLocked')); return; }
+    document.getElementById('avatar-modal').style.display = 'flex';
+    const grid = document.getElementById('avatar-grid');
+    grid.innerHTML = '';
+    try {
+        const resp = await fetch(api('/api/avatars'));
+        const data = await resp.json();
+        data.defaults.forEach(url => {
+            const img = document.createElement('img');
+            img.src = url;
+            img.className = 'avatar-option' + (url === loggedInAvatar ? ' active' : '');
+            img.onclick = () => selectAvatar(url);
+            grid.appendChild(img);
+        });
+    } catch (e) {}
+}
+
+function hideAvatarPicker() { document.getElementById('avatar-modal').style.display = 'none'; }
+
+async function selectAvatar(url) {
+    try {
+        const resp = await fetch(api('/api/avatar/set'), {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ avatar: url })
+        });
+        if (resp.ok) {
+            loggedInAvatar = url;
+            document.getElementById('avatar-btn').src = url;
+            document.querySelectorAll('.avatar-option').forEach(el => el.classList.toggle('active', el.src.endsWith(url)));
+            showToast(t('avatarChanged'));
+        }
+    } catch (e) {}
+}
+
+async function uploadAvatar(input) {
+    if (!input.files || !input.files[0]) return;
+    if (isAdmin()) { showToast(t('adminAvatarLocked')); return; }
+    const form = new FormData();
+    form.append('file', input.files[0]);
+    try {
+        const resp = await fetch(api('/api/avatar/upload'), {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + authSession },
+            body: form
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            loggedInAvatar = data.avatar;
+            document.getElementById('avatar-btn').src = data.avatar;
+            showToast(t('avatarChanged'));
+            hideAvatarPicker();
+        }
+    } catch (e) {}
+    input.value = '';
 }
 
 // ============================================================
@@ -537,7 +700,7 @@ function onClusterClick(province, city) {
 
 function onUploadClick(province, city) {
     if (!isLoggedIn) {
-        showToast(currentLang === 'zh' ? '请先登录' : 'Please login first');
+        showToast(t('pleaseLogin'));
         return;
     }
     currentProvince=province||null; currentCity=city||null;
@@ -688,7 +851,7 @@ function applyViewerTransform(){
 
 function viewerZoomIn(){ viewerZoom=Math.min(viewerZoom*1.3, 5); applyViewerTransform(); }
 function viewerZoomOut(){ viewerZoom=Math.max(viewerZoom/1.3, 0.3); applyViewerTransform(); }
-function viewerRotate(){ viewerRotation=(viewerRotation+90)%360; applyViewerTransform(); }
+function viewerRotate(){ viewerRotation+=90; applyViewerTransform(); }
 function viewerReset(){ viewerZoom=1; viewerRotation=0; applyViewerTransform(); }
 
 function toggleFullscreen(){
@@ -747,26 +910,208 @@ const EMOJI_LIST = [
     '❗','❓','‼️','⁉️','💤','💬','🔔','🔕','📢','📌',
 ];
 
-async function loadComments(photoUrl) {
+let replyToCommentId = 0;
+
+function removeInlineReplyBox() {
+    const old = document.querySelector('.inline-reply-box');
+    if (old) old.remove();
+    replyToCommentId = 0;
+    document.getElementById('comment-input-area').style.display = isLoggedIn ? '' : 'none';
+}
+
+function showInlineReply(commentId, username) {
+    removeInlineReplyBox();
+    replyToCommentId = commentId;
+    // Hide bottom input when inline reply is active
+    document.getElementById('comment-input-area').style.display = 'none';
+    const commentEl = document.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
+    if (!commentEl) return;
+    const placeholder = t('replyTo') + username + '...';
+    const box = document.createElement('div');
+    box.className = 'inline-reply-box';
+    box.innerHTML = `
+        <div class="inline-reply-header">
+            <span>${t('replyingTo')} <b>${escapeHTML(username)}</b></span>
+            <button class="inline-reply-close" onclick="removeInlineReplyBox()" title="${t('cancel')}">&times;</button>
+        </div>
+        <div class="inline-reply-row">
+            <input type="text" class="inline-reply-input" placeholder="${escapeHTML(placeholder)}" maxlength="500" autocomplete="off">
+            <button class="emoji-toggle-btn" onclick="toggleInlineEmoji(this)" title="Emoji">&#128578;</button>
+            <button class="btn-submit comment-send-btn" onclick="submitInlineReply(this)">&#10148;</button>
+        </div>
+        <div class="inline-emoji-picker" style="display:none"></div>`;
+    commentEl.appendChild(box);
+    const input = box.querySelector('.inline-reply-input');
+    input.focus();
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitInlineReply(input); }
+        if (e.key === 'Escape') { removeInlineReplyBox(); }
+    });
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleInlineEmoji(btn) {
+    const picker = btn.closest('.inline-reply-box').querySelector('.inline-emoji-picker');
+    if (picker.style.display === 'none') {
+        if (!picker.hasChildNodes()) {
+            picker.innerHTML = EMOJI_LIST.map(e => `<span class="emoji-item" onclick="insertInlineEmoji(this,'${e}')">${e}</span>`).join('');
+        }
+        picker.style.display = 'flex';
+        picker.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+        picker.style.display = 'none';
+    }
+}
+
+function insertInlineEmoji(el, emoji) {
+    const input = el.closest('.inline-reply-box').querySelector('.inline-reply-input');
+    const pos = input.selectionStart || input.value.length;
+    input.value = input.value.slice(0, pos) + emoji + input.value.slice(pos);
+    input.focus();
+    input.selectionStart = input.selectionEnd = pos + emoji.length;
+}
+
+async function submitInlineReply(el) {
+    if (!currentPreviewPhoto || !replyToCommentId) return;
+    const box = el.closest('.inline-reply-box');
+    const input = box.querySelector('.inline-reply-input');
+    const content = input.value.trim();
+    if (!content) return;
+    const sendBtn = box.querySelector('.comment-send-btn');
+    sendBtn.disabled = true;
+    try {
+        const resp = await fetch(api('/api/comments/add'), {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ photoUrl: currentPreviewPhoto.url, content, parentId: replyToCommentId })
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            const newId = data.id;
+            removeInlineReplyBox();
+            loadComments(currentPreviewPhoto.url, newId);
+        } else { sendBtn.disabled = false; }
+    } catch (e) { sendBtn.disabled = false; }
+}
+
+function buildRootCommentHTML(c) {
+    const delBtn = isAdmin() ? `<button class="comment-del" onclick="deleteComment(${c.id})" title="Delete">&times;</button>` : '';
+    const showName = escapeHTML(c.displayName || c.username);
+    const safeName = escapeHTML(c.displayName || c.username).replace(/'/g, "\\'");
+    const isSelf = loggedInUsername && c.username === loggedInUsername;
+    const replyBtn = (isLoggedIn && !isSelf) ? `<button class="comment-reply-btn" onclick="showInlineReply(${c.id},'${safeName}')">${t('reply')}</button>` : '';
+    const avatarUrl = c.avatar || '/static/avatars/default-1.svg';
+    let html = `<div class="comment-item comment-root" data-comment-id="${c.id}">
+        <img class="comment-avatar" src="${avatarUrl}" alt="">
+        <div class="comment-main">
+        <div class="comment-top"><span class="comment-user">${showName}</span><span class="comment-time">${c.createdAt}</span>${replyBtn}${delBtn}</div>
+        <div class="comment-body">${escapeHTML(c.content)}</div>`;
+    if (c.children && c.children.length > 0) {
+        const COLLAPSE_LIMIT = 5;
+        const visible = c.children.slice(0, COLLAPSE_LIMIT);
+        const hidden = c.children.slice(COLLAPSE_LIMIT);
+        html += `<div class="comment-children">`;
+        for (const child of visible) {
+            html += buildReplyHTML(child, c.id);
+        }
+        if (hidden.length > 0) {
+            html += `<div class="comment-collapse-toggle" onclick="expandReplies(this)">`;
+            html += t('showMoreReplies', hidden.length);
+            html += `</div>`;
+            html += `<div class="comment-hidden-replies" style="display:none">`;
+            for (const child of hidden) {
+                html += buildReplyHTML(child, c.id);
+            }
+            html += `</div>`;
+        }
+        html += `</div>`;
+    }
+    html += `</div></div>`;
+    return html;
+}
+
+function buildReplyHTML(c, rootId) {
+    const delBtn = isAdmin() ? `<button class="comment-del" onclick="deleteComment(${c.id})" title="Delete">&times;</button>` : '';
+    const showName = escapeHTML(c.displayName || c.username);
+    const safeName = escapeHTML(c.displayName || c.username).replace(/'/g, "\\'");
+    const isSelf = loggedInUsername && c.username === loggedInUsername;
+    const replyBtn = (isLoggedIn && !isSelf) ? `<button class="comment-reply-btn" onclick="showInlineReply(${c.id},'${safeName}')">${t('reply')}</button>` : '';
+    const replyTag = c.replyToName ? `<span class="comment-reply-tag">${t('replyVerb')} <b>${escapeHTML(c.replyToName)}</b></span>` : '';
+    return `<div class="comment-item comment-reply" data-comment-id="${c.id}">
+        <div class="comment-top"><span class="comment-user">${showName}</span>${replyTag}<span class="comment-time">${c.createdAt}</span>${replyBtn}${delBtn}</div>
+        <div class="comment-body">${escapeHTML(c.content)}</div>
+    </div>`;
+}
+
+function expandReplies(el) {
+    const hidden = el.nextElementSibling;
+    if (hidden) hidden.style.display = '';
+    el.remove();
+}
+
+function scrollToComment(list, commentId) {
+    let target = list.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
+    if (!target) return;
+    // If target is inside a collapsed section, expand it
+    const hiddenParent = target.closest('.comment-hidden-replies');
+    if (hiddenParent && hiddenParent.style.display === 'none') {
+        hiddenParent.style.display = '';
+        const toggle = hiddenParent.previousElementSibling;
+        if (toggle && toggle.classList.contains('comment-collapse-toggle')) toggle.remove();
+    }
+    // Highlight and scroll
+    target.style.transition = 'background 0.3s';
+    target.style.background = 'var(--accent-glow)';
+    setTimeout(() => { target.style.background = ''; }, 2000);
+    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function loadComments(photoUrl, scrollToId) {
     const list = document.getElementById('comments-list');
     const header = document.getElementById('comments-header');
     list.innerHTML = '';
+    removeInlineReplyBox();
     try {
         const resp = await fetch(api('/api/comments') + '?photo=' + encodeURIComponent(photoUrl));
         const comments = await resp.json();
-        header.textContent = (currentLang === 'zh' ? '评论' : 'Comments') + (comments.length > 0 ? ' (' + comments.length + ')' : '');
+        header.textContent = t('comments') + (comments.length > 0 ? ' (' + comments.length + ')' : '');
         if (comments.length === 0) {
-            list.innerHTML = `<div class="comment-empty">${currentLang === 'zh' ? '暂无评论' : 'No comments yet'}</div>`;
+            list.innerHTML = `<div class="comment-empty">${t('noComments')}</div>`;
             return;
         }
-        list.innerHTML = comments.map(c => {
-            const delBtn = isAdmin() ? `<button class="comment-del" onclick="deleteComment(${c.id})" title="Delete">&times;</button>` : '';
-            return `<div class="comment-item">
-                <div class="comment-top"><span class="comment-user">${escapeHTML(c.username)}</span><span class="comment-time">${c.createdAt}</span>${delBtn}</div>
-                <div class="comment-body">${escapeHTML(c.content)}</div>
-            </div>`;
-        }).join('');
-        list.scrollTop = list.scrollHeight;
+        // Build lookup
+        const byId = {};
+        for (const c of comments) { c.children = []; byId[c.id] = c; }
+        // Find root ancestor of a comment
+        function findRootId(id) {
+            let cur = byId[id];
+            while (cur && cur.parentId && byId[cur.parentId]) { cur = byId[cur.parentId]; }
+            return cur ? cur.id : id;
+        }
+        // Resolve replyToName: the direct parent's display name (who they replied to)
+        for (const c of comments) {
+            if (c.parentId && byId[c.parentId]) {
+                c.replyToName = byId[c.parentId].displayName || byId[c.parentId].username;
+            }
+        }
+        // Build flat 2-level tree: all descendants go under their root ancestor
+        const roots = [];
+        for (const c of comments) {
+            if (!c.parentId || !byId[c.parentId]) {
+                roots.push(c);
+            }
+        }
+        for (const c of comments) {
+            if (c.parentId && byId[c.parentId]) {
+                const rid = findRootId(c.id);
+                if (byId[rid]) byId[rid].children.push(c);
+            }
+        }
+        list.innerHTML = roots.map(c => buildRootCommentHTML(c)).join('');
+        if (scrollToId) {
+            scrollToComment(list, scrollToId);
+        } else {
+            list.scrollTop = 0;
+        }
     } catch (e) { list.innerHTML = ''; }
 }
 
@@ -781,15 +1126,16 @@ async function postComment() {
             body: JSON.stringify({ photoUrl: currentPreviewPhoto.url, content })
         });
         if (resp.ok) {
+            const data = await resp.json();
             input.value = '';
             document.getElementById('emoji-picker').style.display = 'none';
-            loadComments(currentPreviewPhoto.url);
+            loadComments(currentPreviewPhoto.url, data.id);
         }
     } catch (e) {}
 }
 
 async function deleteComment(id) {
-    if (!confirm(currentLang === 'zh' ? '删除此评论？' : 'Delete this comment?')) return;
+    if (!confirm(t('deleteCommentConfirm'))) return;
     try {
         await fetch(api('/api/comments/delete'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id }) });
         if (currentPreviewPhoto) loadComments(currentPreviewPhoto.url);
