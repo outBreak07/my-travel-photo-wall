@@ -7,21 +7,17 @@ echo    China Photo Wall - Starting...
 echo ==========================================
 echo.
 
-if not exist main.exe (
-    echo [INFO] main.exe not found, trying go build...
-    where go >nul 2>&1
-    if %errorlevel% neq 0 (
-        echo [ERROR] Go is not installed and main.exe not found.
-        echo Please install Go or build first: go build -o main.exe main.go
+echo [INFO] Building...
+go build -o main.exe . 2>&1
+if %errorlevel% neq 0 (
+    echo [WARN] Build failed or Go not installed, checking main.exe...
+    if not exist main.exe (
+        echo [ERROR] main.exe not found. Please install Go first.
         pause
         exit /b 1
     )
-    go build -o main.exe .
-    if %errorlevel% neq 0 (
-        echo [ERROR] Build failed.
-        pause
-        exit /b 1
-    )
+    echo [INFO] Using existing main.exe
+) else (
     echo [INFO] Build success.
 )
 

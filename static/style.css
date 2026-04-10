@@ -260,6 +260,20 @@ body {
 .theme-dot[data-theme-id="nord"] { background: #88c0d0; }
 .theme-dot[data-theme-id="berry"] { background: #c084fc; }
 
+#theme-cycle-btn {
+    display: none;
+    padding: 4px 8px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    line-height: 1;
+}
+#theme-cycle-btn:hover { background: var(--accent-glow); border-color: var(--border-light); }
+
 #lang-toggle, #auth-btn {
     padding: 4px 12px;
     background: var(--bg-elevated);
@@ -319,13 +333,17 @@ body {
     width: 780px;
     max-width: 96vw;
     max-height: 92vh;
-    overflow-y: visible;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .users-box .modal-body { padding: 0; }
 
 .users-table-wrap {
-    overflow: visible;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
 }
 
 .users-table {
@@ -399,10 +417,12 @@ body {
     padding: 16px 20px;
     border-top: 1px solid var(--border);
     background: var(--bg-card);
+    flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 .add-user-form input, .add-user-form select {
-    flex: 1; padding: 9px 12px;
+    flex: 1; min-width: 100px; padding: 9px 12px;
     background: var(--bg-base); border: 1px solid var(--border);
     border-radius: var(--radius-sm); color: var(--text-primary);
     font-size: 13px; font-family: inherit;
@@ -450,7 +470,7 @@ body {
     transition: background 0.3s;
 }
 
-#map { width: 100%; height: 100%; }
+#map { width: 100%; height: 100%; min-height: 200px; touch-action: none; }
 
 /* ---- Photo overlay on map ---- */
 #photo-overlay {
@@ -459,6 +479,7 @@ body {
     pointer-events: none;
     overflow: hidden;
     z-index: 10;
+    contain: layout style;
 }
 
 /* Lazy load fade-in for city zoom transition */
@@ -477,12 +498,13 @@ body {
     transform: translate(-50%, -50%);
     pointer-events: auto;
     cursor: pointer;
-    transition: transform 0.15s;
+    z-index: 2;
 }
 
 .map-photo-cluster:hover {
     transform: translate(-50%, -50%) scale(1.08);
-    z-index: 20;
+    z-index: 100;
+    transition: transform 0.15s;
 }
 
 .cluster-photos {
@@ -515,7 +537,6 @@ body {
     color: var(--text-secondary);
     margin-top: 3px;
     white-space: nowrap;
-    text-shadow: var(--cluster-shadow);
     cursor: pointer;
     pointer-events: auto;
 }
@@ -533,6 +554,18 @@ body {
     border-radius: 8px;
     margin-left: 3px;
     font-weight: 600;
+}
+
+/* Capital city indicator dot on photo clusters */
+.cluster-capital-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 3px;
+    vertical-align: middle;
+    box-shadow: 0 0 4px var(--accent);
 }
 
 .cluster-add-btn {
@@ -574,22 +607,25 @@ body {
     cursor: pointer;
     text-align: center;
     white-space: nowrap;
-    transition: transform 0.15s;
+    z-index: 1;
 }
 
 .city-marker:hover {
     transform: translate(-50%, -50%) scale(1.15);
-    z-index: 15;
+    z-index: 100;
+    transition: transform 0.15s;
 }
 
 .city-marker:hover .city-marker-dot {
     opacity: 1;
     background: var(--accent);
+    transition: all 0.15s;
 }
 
 .city-marker:hover .city-marker-name {
     opacity: 1;
     color: var(--accent);
+    transition: all 0.15s;
 }
 
 .city-marker-dot {
@@ -599,15 +635,27 @@ body {
     background: var(--text-muted);
     margin: 0 auto 2px;
     opacity: 0.5;
-    transition: all 0.15s;
 }
 
 .city-marker-name {
     font-size: 9px;
     color: var(--text-muted);
     opacity: 0.6;
-    text-shadow: var(--cluster-shadow);
-    transition: all 0.15s;
+}
+
+/* Capital city marker — always prominent */
+.city-marker-capital .city-marker-dot {
+    width: 7px;
+    height: 7px;
+    opacity: 0.8;
+    background: var(--accent);
+}
+
+.city-marker-capital .city-marker-name {
+    font-size: 10px;
+    opacity: 0.85;
+    font-weight: 600;
+    color: var(--text-secondary);
 }
 
 /* ---- Right panel ---- */
@@ -803,6 +851,7 @@ body {
     align-items: center;
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
 
 .modal-header h3 { color: var(--text-primary); font-size: 15px; font-weight: 600; }
@@ -862,12 +911,20 @@ body {
 
 .form-group textarea { resize: vertical; min-height: 60px; }
 
-#upload-preview { display: flex; flex-wrap: wrap; gap: 6px; }
+#upload-preview { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 #upload-preview img {
     width: 72px; height: 72px;
     object-fit: cover;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
+}
+
+.upload-limit-hint {
+    display: block;
+    width: 100%;
+    font-size: 12px;
+    color: var(--danger);
+    margin-top: 4px;
 }
 
 .btn-cancel {
@@ -956,7 +1013,7 @@ body {
 /* Image area */
 .preview-img-wrap {
     position: relative;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
     display: flex;
     align-items: center;
@@ -971,6 +1028,7 @@ body {
     object-fit: contain;
     transition: transform 0.2s ease;
     cursor: grab;
+    display: block;
 }
 
 #preview-img:active { cursor: grabbing; }
@@ -1041,13 +1099,14 @@ body {
 
 /* Info & comments panel — stable layout, only comments-list scrolls */
 .preview-info {
-    flex: 0 0 auto;
-    max-height: 45%;
+    flex: 0 1 auto;
+    max-height: 40%;
     display: flex;
     flex-direction: column;
     padding: 14px 18px;
     background: var(--bg-elevated);
     border-top: 1px solid var(--border);
+    overflow-y: auto;
 }
 
 .preview-meta-row {
@@ -1071,65 +1130,67 @@ body {
 .preview-photo-meta {
     font-size: 11px;
     color: var(--text-muted);
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     line-height: 1.5;
     flex-shrink: 0;
 }
 
-.preview-city-select {
-    padding: 5px 10px;
-    background: var(--bg-base);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
+.preview-uploader {
     font-size: 12px;
-    font-family: inherit;
-    max-width: 200px;
-    cursor: pointer;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    flex-shrink: 0;
 }
 
-.preview-city-select:focus { outline: none; border-color: var(--accent); }
-.preview-city-select option { background: var(--bg-base); color: var(--text-primary); }
+/* Action buttons (edit / delete) */
+.preview-action-btns {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
 
-.preview-textarea {
-    width: 100%;
-    padding: 8px 12px;
-    background: var(--bg-base);
+.preview-action-icon {
+    width: 32px;
+    height: 32px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    font-size: 13px;
-    font-family: inherit;
-    min-height: 44px;
-    max-height: 80px;
-    resize: vertical;
-    transition: border-color 0.2s;
-    margin-bottom: 10px;
-}
-
-.preview-textarea:focus { outline: none; border-color: var(--accent); }
-
-.preview-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
-
-.preview-actions button {
-    padding: 7px 18px;
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-sm);
+    background: var(--bg-base);
+    color: var(--text-secondary);
     cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
 }
+
+.preview-action-icon:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-glow);
+}
+
+.preview-action-icon.preview-action-danger:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(239,68,68,0.1);
+}
+
+.preview-desc-display {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.5;
+    margin-bottom: 8px;
+    word-break: break-word;
+    flex-shrink: 0;
+}
+
+/* ---- Edit photo modal ---- */
+#edit-modal { z-index: 1200; }
+
+.edit-box { width: 440px; max-width: 96vw; }
 
 .btn-danger { background: var(--danger); }
 .btn-danger:hover { background: var(--danger-hover); }
-
-.preview-edit-area { margin-bottom: 8px; flex-shrink: 0; }
 
 /* ---- Comments ---- */
 .comments-section {
@@ -1497,6 +1558,39 @@ body {
     transition: opacity 0.3s;
 }
 
+/* ---- Map zoom controls (mobile only) ---- */
+#map-zoom-controls {
+    display: none;
+    position: absolute;
+    bottom: 50px;
+    right: 12px;
+    z-index: 12;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.map-zoom-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow);
+    transition: background 0.15s;
+}
+
+.map-zoom-btn:active {
+    background: var(--accent-glow);
+}
+
 /* ---- Avatar picker modal ---- */
 .avatar-box {
     max-width: 360px;
@@ -1543,4 +1637,132 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+}
+
+/* ============================================================
+   Mobile responsive (< 768px)
+   ============================================================ */
+@media (max-width: 768px) {
+    /*
+     * Mobile layout: use dvh (dynamic viewport height) with vh fallback.
+     * Avoid flex ratios for map/panel — use hard dvh/vh values so
+     * ECharts always gets a real pixel height, even if flex is buggy.
+     */
+    body { height: 100dvh; height: 100vh; overflow: hidden; }
+    #app  { height: 100dvh; height: 100vh; }
+
+    /* ---- Header: single row, compact ---- */
+    #header {
+        padding: 6px 10px;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+    #title { font-size: 14px; }
+    #breadcrumb { display: none; }
+    #header-controls { gap: 6px; }
+    #theme-picker { display: none; }
+    #theme-cycle-btn { display: inline-flex; }
+    #lang-toggle, #auth-btn, #users-btn { font-size: 11px; padding: 3px 10px; }
+    .header-avatar { width: 24px; height: 24px; }
+
+    /* ---- Main: column, takes remaining space ---- */
+    #main {
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Map: fixed height in viewport units — guaranteed non-zero */
+    #map-container {
+        flex: none !important;
+        width: 100% !important;
+        height: 52dvh;
+        height: 52vh;
+        min-height: 200px;
+    }
+
+    /* ---- Map zoom controls ---- */
+    #map-zoom-controls { display: flex; }
+
+    /* ---- Photo overlay: larger touch targets ---- */
+    .cluster-photos img { width: 32px; height: 32px; }
+    .cluster-label { font-size: 9px; }
+    .city-marker-name { font-size: 8px; }
+    .city-marker-dot { width: 6px; height: 6px; }
+
+    /* ---- Photo panel: fills rest, scrolls inside ---- */
+    #photo-panel {
+        flex: 1 !important;
+        width: 100% !important;
+        min-height: 0;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        overflow-y: auto;
+    }
+
+    #photo-header { padding: 10px 12px; }
+    #photo-title { font-size: 14px; }
+    #btn-upload { padding: 6px 12px; font-size: 11px; }
+
+    #photo-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        padding: 6px;
+    }
+
+    .photo-card .photo-location { font-size: 8px; padding: 1px 5px; top: 4px; left: 4px; }
+    .photo-card .photo-taken { font-size: 8px; padding: 1px 5px; top: 4px; right: 4px; }
+    .photo-card .photo-uploader { font-size: 8px; padding: 1px 5px; }
+    .photo-card .photo-desc { font-size: 9px; padding: 18px 6px 4px; }
+    .city-group { font-size: 12px; padding: 8px 4px 4px; }
+
+    /* ---- Modals: full screen on mobile ---- */
+    .modal-content {
+        width: 100%; max-width: 100%; max-height: 100%;
+        height: 100%; border-radius: 0; border: none;
+    }
+    .modal-content.users-box {
+        width: 100%; max-width: 100%; max-height: 100%;
+        height: 100%; border-radius: 0;
+    }
+    .login-box {
+        width: 100%; max-width: 100%;
+        height: auto; max-height: 100%; border-radius: 0;
+    }
+    .add-user-form { flex-wrap: wrap; gap: 6px; padding: 12px; }
+    .add-user-form input, .add-user-form select { flex: 1 1 40%; min-width: 100px; }
+
+    /* ---- Preview modal: full screen ---- */
+    .preview-content {
+        width: 100vw; max-width: 100vw; height: 100vh;
+        border-radius: 0; border: none; box-shadow: none;
+        flex-direction: column;
+    }
+    .preview-img-wrap { flex: 1 1 auto; min-height: 40vh; }
+    .preview-info { max-height: 50vh; padding: 10px 12px; overflow-y: auto; }
+    .preview-nav { width: 34px; height: 34px; font-size: 20px; }
+    .preview-nav-left { left: 6px; }
+    .preview-nav-right { right: 6px; }
+    .viewer-toolbar { opacity: 1; bottom: 8px; }
+    .viewer-toolbar button { width: 28px; height: 28px; }
+    .preview-content .modal-close { top: 6px; right: 6px; width: 28px; height: 28px; font-size: 20px; }
+    .preview-location { font-size: 12px; }
+    .preview-photo-meta { font-size: 10px; }
+
+    /* ---- Upload modal ---- */
+    #upload-preview img { width: 56px; height: 56px; }
+
+    /* ---- Misc ---- */
+    #zoom-hint { font-size: 11px; padding: 4px 12px; bottom: 10px; }
+    .avatar-box { max-width: 100%; border-radius: 0; }
+    .avatar-option { width: 44px; height: 44px; }
+    .toast { font-size: 13px; padding: 8px 20px; }
+}
+
+/* ---- Small phones (< 400px) ---- */
+@media (max-width: 400px) {
+    #photo-grid { grid-template-columns: repeat(2, 1fr); }
+    #title { font-size: 13px; }
+    .preview-info { max-height: 55vh; }
 }

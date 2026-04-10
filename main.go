@@ -18,10 +18,13 @@ import (
 
 	"image"
 	_ "image/gif"
-	_ "image/jpeg"
+	"image/jpeg"
 	_ "image/png"
 
 	goexif "github.com/rwcarlsen/goexif/exif"
+	_ "golang.org/x/image/bmp"
+	xdraw "golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 	_ "modernc.org/sqlite"
 )
 
@@ -269,6 +272,17 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// ---- No-cache middleware for static dev files ----
+
+func noCacheMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		next.ServeHTTP(w, r)
+	})
+}
+
 // ---- Auth middleware ----
 
 func getSessionFromRequest(r *http.Request) string {
@@ -342,6 +356,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok", "session": createSession(user.Username),
 		"username": user.Username, "role": user.Role, "name": user.Name,
+		"avatar": user.AvatarURL(),
 	})
 }
 
@@ -366,6 +381,97 @@ func handleAuthCheck(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"authEnabled": authEnabled, "loggedIn": loggedIn, "username": username, "role": role, "name": name, "avatar": avatar,
 	})
+}
+
+// ---- GeoJSON proxy (DataV CDN returns 403 for some mobile browsers) ----
+
+var (
+	geoCacheMu   sync.RWMutex
+	geoCacheData = map[string][]byte{}
+)
+
+// Valid adcodes: 6-digit numbers. We whitelist the pattern to prevent SSRF.
+func isValidAdcode(s string) bool {
+	if len(s) != 6 {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func handleGeoProxy(w http.ResponseWriter, r *http.Request) {
+	adcode := r.URL.Query().Get("adcode")
+	if !isValidAdcode(adcode) {
+		http.Error(w, "invalid adcode", http.StatusBadRequest)
+		return
+	}
+
+	cacheKey := adcode
+
+	// Check memory cache
+	geoCacheMu.RLock()
+	if data, ok := geoCacheData[cacheKey]; ok {
+		geoCacheMu.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Write(data)
+		return
+	}
+	geoCacheMu.RUnlock()
+
+	// Check disk cache
+	diskPath := filepath.Join(dataDir, "geo", adcode+"_full.json")
+	if data, err := os.ReadFile(diskPath); err == nil {
+		geoCacheMu.Lock()
+		geoCacheData[cacheKey] = data
+		geoCacheMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Write(data)
+		return
+	}
+
+	// Fetch from DataV CDN
+	url := fmt.Sprintf("https://geo.datav.aliyun.com/areas_v3/bound/%s_full.json", adcode)
+	client := &http.Client{Timeout: 15 * time.Second}
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("Referer", "https://datav.aliyun.com/")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "upstream fetch failed", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		http.Error(w, "upstream error", resp.StatusCode)
+		return
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10MB limit
+	if err != nil {
+		http.Error(w, "read error", http.StatusBadGateway)
+		return
+	}
+
+	// Save to disk cache
+	os.MkdirAll(filepath.Join(dataDir, "geo"), 0755)
+	os.WriteFile(diskPath, data, 0644)
+
+	// Save to memory cache
+	geoCacheMu.Lock()
+	geoCacheData[cacheKey] = data
+	geoCacheMu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Write(data)
 }
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -762,11 +868,12 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
+	mux.Handle("/static/", noCacheMiddleware(http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir)))))
 	mux.Handle("/photos/", http.StripPrefix("/photos/", http.FileServer(http.Dir(photosDir))))
 	mux.Handle("/avatars/", http.StripPrefix("/avatars/", http.FileServer(http.Dir("avatars"))))
 
 	// Public
+	mux.HandleFunc("/api/geo", handleGeoProxy)
 	mux.HandleFunc("/api/config", handleConfig)
 	mux.HandleFunc("/api/photos", handleListPhotos)
 	mux.HandleFunc("/api/provinces", handleListProvinces)
@@ -801,8 +908,14 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 	})
+
+	// Migrate existing photos: generate thumbnails in background
+	go migrateExistingThumbs()
 
 	go func() {
 		time.Sleep(500 * time.Millisecond)
@@ -829,6 +942,125 @@ type MetaEntry struct {
 	Width       int    `json:"width,omitempty"`
 	Height      int    `json:"height,omitempty"`
 	FileSize    int64  `json:"fileSize,omitempty"`
+	ThumbSmall  string `json:"thumbSmall,omitempty"`
+	ThumbMedium string `json:"thumbMedium,omitempty"`
+}
+
+// ---- Thumbnail generation ----
+
+func generateThumbnail(srcPath, dstPath string, maxWidth int) error {
+	f, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	src, _, err := image.Decode(f)
+	if err != nil {
+		return err
+	}
+
+	bounds := src.Bounds()
+	origW := bounds.Dx()
+	origH := bounds.Dy()
+
+	newW := maxWidth
+	newH := origH * maxWidth / origW
+	if origW <= maxWidth {
+		newW = origW
+		newH = origH
+	}
+	if newH == 0 {
+		newH = 1
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	xdraw.BiLinear.Scale(dst, dst.Bounds(), src, bounds, xdraw.Over, nil)
+
+	out, err := os.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	quality := 85
+	if maxWidth <= 100 {
+		quality = 75
+	}
+	return jpeg.Encode(out, dst, &jpeg.Options{Quality: quality})
+}
+
+func generateThumbs(dir, filename string) (thumbSmall, thumbMedium string) {
+	srcPath := filepath.Join(dir, filename)
+	thumbDir := filepath.Join(dir, "thumbs")
+	os.MkdirAll(thumbDir, 0755)
+
+	base := strings.TrimSuffix(filename, filepath.Ext(filename))
+	smallName := base + "_s.jpg"
+	mediumName := base + "_m.jpg"
+
+	if err := generateThumbnail(srcPath, filepath.Join(thumbDir, smallName), 80); err == nil {
+		thumbSmall = "thumbs/" + smallName
+	}
+	if err := generateThumbnail(srcPath, filepath.Join(thumbDir, mediumName), 400); err == nil {
+		thumbMedium = "thumbs/" + mediumName
+	}
+	return
+}
+
+func migrateExistingThumbs() {
+	count := 0
+	provs, _ := os.ReadDir(photosDir)
+	for _, p := range provs {
+		if !p.IsDir() {
+			continue
+		}
+		provDir := filepath.Join(photosDir, p.Name())
+		// Photos directly in province dir
+		count += migrateThumbsInDir(provDir)
+		entries, _ := os.ReadDir(provDir)
+		for _, e := range entries {
+			if e.IsDir() && e.Name() != "thumbs" {
+				count += migrateThumbsInDir(filepath.Join(provDir, e.Name()))
+			}
+		}
+	}
+	if count > 0 {
+		fmt.Printf("[INFO] Generated thumbnails for %d existing photos\n", count)
+	}
+}
+
+func migrateThumbsInDir(dir string) int {
+	meta := loadMeta(dir)
+	changed := false
+	count := 0
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if e.IsDir() || e.Name() == "meta.json" {
+			continue
+		}
+		m := meta[e.Name()]
+		if m.ThumbSmall != "" && m.ThumbMedium != "" {
+			continue
+		}
+		ts, tm := generateThumbs(dir, e.Name())
+		if ts != "" && m.ThumbSmall == "" {
+			m.ThumbSmall = ts
+			changed = true
+		}
+		if tm != "" && m.ThumbMedium == "" {
+			m.ThumbMedium = tm
+			changed = true
+		}
+		if m.ThumbSmall != "" || m.ThumbMedium != "" {
+			meta[e.Name()] = m
+			count++
+		}
+	}
+	if changed {
+		saveMeta(dir, meta)
+	}
+	return count
 }
 
 func loadMeta(dir string) map[string]MetaEntry {
@@ -971,6 +1203,9 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	savedPath := filepath.Join(dir, filename)
 	takenAt, camera, imgW, imgH, fSize := extractPhotoMeta(savedPath)
 
+	// Generate thumbnails
+	thumbSmall, thumbMedium := generateThumbs(dir, filename)
+
 	uploaderName := ""
 	if user := getRequestUser(r); user != nil {
 		uploaderName = user.Username
@@ -980,6 +1215,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		Description: description, UploadedBy: uploaderName,
 		TakenAt: takenAt, Camera: camera,
 		Width: imgW, Height: imgH, FileSize: fSize,
+		ThumbSmall: thumbSmall, ThumbMedium: thumbMedium,
 	}
 	saveMeta(dir, meta)
 	var photoPath string
@@ -1004,6 +1240,8 @@ type PhotoInfo struct {
 	Width       int    `json:"width"`
 	Height      int    `json:"height"`
 	FileSize    int64  `json:"fileSize"`
+	ThumbSmall  string `json:"thumbSmall,omitempty"`
+	ThumbMedium string `json:"thumbMedium,omitempty"`
 }
 
 // buildPhotoInfo creates a PhotoInfo, backfilling missing metadata from disk
@@ -1033,6 +1271,15 @@ func buildPhotoInfo(url, province, city, filename, dir string, m MetaEntry) Phot
 			p.FileSize = fSize
 		}
 	}
+	// Construct thumb URLs from relative paths stored in meta
+	if m.ThumbSmall != "" {
+		baseURL := url[:strings.LastIndex(url, "/")+1]
+		p.ThumbSmall = baseURL + m.ThumbSmall
+	}
+	if m.ThumbMedium != "" {
+		baseURL := url[:strings.LastIndex(url, "/")+1]
+		p.ThumbMedium = baseURL + m.ThumbMedium
+	}
 	return p
 }
 
@@ -1060,7 +1307,7 @@ func handleListPhotos(w http.ResponseWriter, r *http.Request) {
 		provMeta := loadMeta(provDir)
 		entries, _ := os.ReadDir(provDir)
 		for _, e := range entries {
-			if e.IsDir() {
+			if e.IsDir() && e.Name() != "thumbs" {
 				cityDir := filepath.Join(provDir, e.Name())
 				cityMeta := loadMeta(cityDir)
 				ces, _ := os.ReadDir(cityDir)
@@ -1083,7 +1330,7 @@ func handleListPhotos(w http.ResponseWriter, r *http.Request) {
 			provMeta := loadMeta(provDir)
 			entries, _ := os.ReadDir(provDir)
 			for _, e := range entries {
-				if e.IsDir() {
+				if e.IsDir() && e.Name() != "thumbs" {
 					cityDir := filepath.Join(provDir, e.Name())
 					cityMeta := loadMeta(cityDir)
 					ces, _ := os.ReadDir(cityDir)
@@ -1092,7 +1339,7 @@ func handleListPhotos(w http.ResponseWriter, r *http.Request) {
 							photos = append(photos, buildPhotoInfo(fmt.Sprintf("/photos/%s/%s/%s", p.Name(), e.Name(), ce.Name()), p.Name(), e.Name(), ce.Name(), cityDir, cityMeta[ce.Name()]))
 						}
 					}
-				} else if e.Name() != "meta.json" {
+				} else if !e.IsDir() && e.Name() != "meta.json" {
 					photos = append(photos, buildPhotoInfo(fmt.Sprintf("/photos/%s/%s", p.Name(), e.Name()), p.Name(), "", e.Name(), provDir, provMeta[e.Name()]))
 				}
 			}
@@ -1125,7 +1372,7 @@ func handleListProvinces(w http.ResponseWriter, r *http.Request) {
 		entries, _ := os.ReadDir(filepath.Join(photosDir, p.Name()))
 		pdc := 0
 		for _, e := range entries {
-			if e.IsDir() {
+			if e.IsDir() && e.Name() != "thumbs" {
 				ces, _ := os.ReadDir(filepath.Join(photosDir, p.Name(), e.Name()))
 				c := 0
 				for _, ce := range ces {
@@ -1219,6 +1466,10 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "delete failed", http.StatusInternalServerError)
 		return
 	}
+	// Delete thumbnails
+	base := strings.TrimSuffix(req.Filename, filepath.Ext(req.Filename))
+	os.Remove(filepath.Join(dir, "thumbs", base+"_s.jpg"))
+	os.Remove(filepath.Join(dir, "thumbs", base+"_m.jpg"))
 	meta := loadMeta(dir)
 	delete(meta, req.Filename)
 	saveMeta(dir, meta)

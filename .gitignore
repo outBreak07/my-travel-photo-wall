@@ -8,6 +8,7 @@ main.exe
 # Runtime data
 photos/
 data/
+avatars/
 
 # OS files
 .DS_Store
