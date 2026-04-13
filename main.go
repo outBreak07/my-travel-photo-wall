@@ -36,7 +36,13 @@ const (
 	dbFile    = "data/photowall.db"
 )
 
-var metaMu sync.Mutex
+var metaMu sync.RWMutex
+var metaCache = map[string]map[string]MetaEntry{} // dir → filename → MetaEntry
+
+var summaryCacheData []byte
+var summaryCacheValid bool
+var summaryCacheMu sync.RWMutex
+
 var db *sql.DB
 
 // Config from .env
@@ -263,6 +269,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", corsOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Total-Count")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -876,6 +883,7 @@ func main() {
 	mux.HandleFunc("/api/geo", handleGeoProxy)
 	mux.HandleFunc("/api/config", handleConfig)
 	mux.HandleFunc("/api/photos", handleListPhotos)
+	mux.HandleFunc("/api/photos/summary", handlePhotoSummary)
 	mux.HandleFunc("/api/provinces", handleListProvinces)
 	mux.HandleFunc("/api/auth/login", handleLogin)
 	mux.HandleFunc("/api/auth/check", handleAuthCheck)
@@ -1064,25 +1072,68 @@ func migrateThumbsInDir(dir string) int {
 }
 
 func loadMeta(dir string) map[string]MetaEntry {
+	// Fast path: check cache with read lock
+	metaMu.RLock()
+	if cached, ok := metaCache[dir]; ok {
+		// Return shallow copy (MetaEntry is a value type)
+		cp := make(map[string]MetaEntry, len(cached))
+		for k, v := range cached {
+			cp[k] = v
+		}
+		metaMu.RUnlock()
+		return cp
+	}
+	metaMu.RUnlock()
+
+	// Slow path: acquire write lock and double-check
 	metaMu.Lock()
 	defer metaMu.Unlock()
+	if cached, ok := metaCache[dir]; ok {
+		cp := make(map[string]MetaEntry, len(cached))
+		for k, v := range cached {
+			cp[k] = v
+		}
+		return cp
+	}
+
 	data, err := os.ReadFile(filepath.Join(dir, "meta.json"))
 	if err != nil {
+		metaCache[dir] = map[string]MetaEntry{}
 		return map[string]MetaEntry{}
 	}
 	var m map[string]MetaEntry
 	json.Unmarshal(data, &m)
 	if m == nil {
+		metaCache[dir] = map[string]MetaEntry{}
 		return map[string]MetaEntry{}
 	}
-	return m
+	metaCache[dir] = m
+	// Return shallow copy
+	cp := make(map[string]MetaEntry, len(m))
+	for k, v := range m {
+		cp[k] = v
+	}
+	return cp
 }
 
 func saveMeta(dir string, m map[string]MetaEntry) {
 	metaMu.Lock()
-	defer metaMu.Unlock()
+	// Store copy in cache
+	cp := make(map[string]MetaEntry, len(m))
+	for k, v := range m {
+		cp[k] = v
+	}
+	metaCache[dir] = cp
 	data, _ := json.MarshalIndent(m, "", "  ")
 	os.WriteFile(filepath.Join(dir, "meta.json"), data, 0644)
+	metaMu.Unlock()
+	invalidateSummaryCache()
+}
+
+func invalidateSummaryCache() {
+	summaryCacheMu.Lock()
+	summaryCacheValid = false
+	summaryCacheMu.Unlock()
 }
 
 // ---- EXIF & image info extraction ----
@@ -1153,7 +1204,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	r.ParseMultipartForm(20 << 20)
+	r.ParseMultipartForm(50 << 20)
 	province := strings.TrimSpace(r.FormValue("province"))
 	city := strings.TrimSpace(r.FormValue("city"))
 	description := strings.TrimSpace(r.FormValue("description"))
@@ -1348,8 +1399,141 @@ func handleListPhotos(w http.ResponseWriter, r *http.Request) {
 	if photos == nil {
 		photos = []PhotoInfo{}
 	}
+
+	// Pagination support
+	var page, limit int
+	fmt.Sscanf(r.URL.Query().Get("page"), "%d", &page)
+	fmt.Sscanf(r.URL.Query().Get("limit"), "%d", &limit)
+	if limit > 0 && page > 0 {
+		total := len(photos)
+		w.Header().Set("X-Total-Count", fmt.Sprintf("%d", total))
+		start := (page - 1) * limit
+		if start >= total {
+			photos = []PhotoInfo{}
+		} else {
+			end := start + limit
+			if end > total {
+				end = total
+			}
+			photos = photos[start:end]
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(photos)
+}
+
+func handlePhotoSummary(w http.ResponseWriter, r *http.Request) {
+	// Serve from cache if valid
+	summaryCacheMu.RLock()
+	if summaryCacheValid && summaryCacheData != nil {
+		data := summaryCacheData
+		summaryCacheMu.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+		return
+	}
+	summaryCacheMu.RUnlock()
+
+	type CitySummary struct {
+		Count  int      `json:"count"`
+		Thumbs []string `json:"thumbs"`
+	}
+	type ProvinceSummary struct {
+		Count  int                    `json:"count"`
+		Thumbs []string               `json:"thumbs"`
+		Cities map[string]CitySummary `json:"cities"`
+	}
+
+	result := map[string]*ProvinceSummary{}
+
+	provs, _ := os.ReadDir(photosDir)
+	for _, p := range provs {
+		if !p.IsDir() {
+			continue
+		}
+		provName := p.Name()
+		provDir := filepath.Join(photosDir, provName)
+		ps := &ProvinceSummary{Cities: map[string]CitySummary{}}
+
+		entries, _ := os.ReadDir(provDir)
+		// Collect province-level (uncategorized) photos
+		provMeta := loadMeta(provDir)
+		var provThumbs []string
+		provUncatCount := 0
+		for _, e := range entries {
+			if e.IsDir() && e.Name() != "thumbs" {
+				// City directory
+				cityName := e.Name()
+				cityDir := filepath.Join(provDir, cityName)
+				cityMeta := loadMeta(cityDir)
+				ces, _ := os.ReadDir(cityDir)
+				cs := CitySummary{}
+				for _, ce := range ces {
+					if !ce.IsDir() && ce.Name() != "meta.json" {
+						cs.Count++
+						if len(cs.Thumbs) < 5 {
+							thumb := ""
+							if m, ok := cityMeta[ce.Name()]; ok && m.ThumbSmall != "" {
+								thumb = fmt.Sprintf("/photos/%s/%s/%s", provName, cityName, m.ThumbSmall)
+							} else {
+								thumb = fmt.Sprintf("/photos/%s/%s/%s", provName, cityName, ce.Name())
+							}
+							cs.Thumbs = append(cs.Thumbs, thumb)
+						}
+					}
+				}
+				if cs.Count > 0 {
+					if cs.Thumbs == nil {
+						cs.Thumbs = []string{}
+					}
+					ps.Cities[cityName] = cs
+					ps.Count += cs.Count
+					// Contribute to province thumbs (max 3 for province level)
+					for _, t := range cs.Thumbs {
+						if len(provThumbs) < 3 {
+							provThumbs = append(provThumbs, t)
+						}
+					}
+				}
+			} else if !e.IsDir() && e.Name() != "meta.json" {
+				// Uncategorized photo directly in province dir
+				provUncatCount++
+				if len(provThumbs) < 3 {
+					thumb := ""
+					if m, ok := provMeta[e.Name()]; ok && m.ThumbSmall != "" {
+						thumb = fmt.Sprintf("/photos/%s/%s", provName, m.ThumbSmall)
+					} else {
+						thumb = fmt.Sprintf("/photos/%s/%s", provName, e.Name())
+					}
+					provThumbs = append(provThumbs, thumb)
+				}
+			}
+		}
+
+		if provUncatCount > 0 {
+			ps.Cities[""] = CitySummary{Count: provUncatCount, Thumbs: []string{}}
+			ps.Count += provUncatCount
+		}
+
+		if ps.Count > 0 {
+			if provThumbs == nil {
+				provThumbs = []string{}
+			}
+			ps.Thumbs = provThumbs
+			result[provName] = ps
+		}
+	}
+
+	data, _ := json.Marshal(result)
+
+	summaryCacheMu.Lock()
+	summaryCacheData = data
+	summaryCacheValid = true
+	summaryCacheMu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
 }
 
 func handleListProvinces(w http.ResponseWriter, r *http.Request) {

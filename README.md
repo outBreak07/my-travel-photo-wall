@@ -29,7 +29,7 @@ Display your photo journey on an interactive China map. Upload photos tagged wit
 - **Auto Capital Matching** - Defaults to provincial capital when city not specified
 
 ### Photo Management
-- **Batch Upload** - Upload up to 20 photos at once, supports JPG, PNG, GIF, WebP, BMP (max 20MB each)
+- **Batch Upload** - Upload up to 50 photos at once with real-time progress indicator, supports JPG, PNG, GIF, WebP, BMP (max 20MB each)
 - **Metadata Extraction** - Automatically reads shooting time, camera model, resolution
 - **Separate Edit Modal** - Clean viewer with dedicated edit dialog for descriptions and city reassignment
 - **Secure Storage** - Local filesystem storage, full control of your data
@@ -53,6 +53,7 @@ Display your photo journey on an interactive China map. Upload photos tagged wit
 
 ### Mobile Support
 - **Touch-Optimized Map** - Drag to pan, dedicated +/- buttons for zoom
+- **Mobile Upload** - Separate "From Album" (multi-select) and "Take Photo" (camera) buttons
 - **GeoJSON Proxy** - Server-side proxy eliminates mobile browser CDN access issues (403 errors)
 - **Responsive Layout** - Full-screen modals, compact header, optimized touch targets
 - **Performance Tuned** - Throttled overlay updates, reduced network concurrency on mobile

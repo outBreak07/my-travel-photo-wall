@@ -93,7 +93,9 @@ CORS_ORIGIN=*                    # CORS allowed origin
 12. **i18n**: Chinese (default) / English toggle. Map labels translate via `PROVINCE_EN` mapping + ECharts label formatter
 13. **Themes**: 5 themes (Light default, Dark, Mocha, Nord, Berry) via CSS custom properties on `[data-theme]`
 14. **CORS**: Middleware on all routes, configurable origin via `.env`
-15. **Upload limit**: Max 20 files per upload batch. Frontend enforces with toast + visual hint
+15. **Upload limit**: Max 50 files per upload batch. Frontend enforces with toast + visual hint. Upload shows circular SVG progress indicator (percentage + count)
+16. **Upload UX split**: Desktop shows a click-to-select zone; mobile shows separate "From Album" + "Take Photo" buttons. Device detection via `navigator.userAgent` + `maxTouchPoints`
+17. **Province name safety**: `ADCODE_TO_PROVINCE` and `PROVINCE_LIST` filter by official suffix regex (`/[省市]$|自治区$|特别行政区$/`) to prevent short names (e.g. "内蒙古") from overriding full names (e.g. "内蒙古自治区") and creating wrong directories
 
 ## Mobile-specific behaviors
 - **Touch handling**: `#map` has `touch-action: none` to prevent browser zoom interference. ECharts `roam` set to `'move'` only (no pinch zoom)
@@ -101,6 +103,7 @@ CORS_ORIGIN=*                    # CORS allowed origin
 - **GeoJSON loading**: Smaller batch size (2 concurrent vs 4) with longer delays (300ms vs 80ms) to avoid overwhelming mobile network
 - **ECharts tooltip**: `z-index: 100` + `confine: true` to prevent tooltip from showing through modals. Hidden on preview open via `chart.dispatchAction({type:'hideTip'})`
 - **Overlay performance**: `contain: layout style` on `#photo-overlay`. No CSS transitions on overlay elements except `:hover`. Throttled `onGeoRoam` (80ms) to reduce redraws
+- **Upload controls**: Separate "From Album" (`accept="image/*" multiple`) and "Take Photo" (`capture="environment"`) buttons, hidden on desktop
 
 ## Build & run
 ```bash
@@ -113,7 +116,7 @@ go build -o main.exe .    # compile (requires go modules)
 - Console output in English to avoid Windows cmd encoding issues
 - Filenames are nanosecond timestamps to avoid collisions
 - Path traversal protection on province/city params (reject `..`, `/`, `\`)
-- Allowed image types: jpg, jpeg, png, gif, webp, bmp (max 20MB, max 20 files per batch)
+- Allowed image types: jpg, jpeg, png, gif, webp, bmp (max 20MB per file, max 50 files per batch)
 - Auth token sent via `Authorization: Bearer` header (never in URL or form body)
 - All write API errors return JSON `{"error": "message"}`
 - GeoJSON proxy validates adcode as exactly 6 digits to prevent SSRF

@@ -23,10 +23,11 @@ const PROVINCE_ADCODE = {
     '香港':810000,'澳门':820000
 };
 const ADCODE_TO_PROVINCE = {};
+const _isFullProvinceName = n => /[省市]$|自治区$|特别行政区$/.test(n);
 for (const [name, code] of Object.entries(PROVINCE_ADCODE)) {
-    if (name.length > 2) ADCODE_TO_PROVINCE[code] = name;
+    if (_isFullProvinceName(name)) ADCODE_TO_PROVINCE[code] = name;
 }
-const PROVINCE_LIST = Object.keys(PROVINCE_ADCODE).filter(n => n.length > 2).sort();
+const PROVINCE_LIST = Object.keys(PROVINCE_ADCODE).filter(_isFullProvinceName).sort();
 
 const PROVINCE_CAPITAL = {
     '北京市':'北京市','天津市':'天津市','上海市':'上海市','重庆市':'重庆市',
@@ -78,10 +79,13 @@ const TRANSLATIONS = {
         city: '城市', selectProvinceFirst: '请先选择省份',
         description: '描述（可选）', descPlaceholder: '为照片添加描述...',
         images: '图片', cancel: '取消', uploadBtn: '上传', uploading: '上传中...',
+        clickToSelect: '点击选择图片',
+        fromAlbum: '从相册选择', fromCamera: '拍照',
+        selectedN: '已选择 {0} 张', clearAll: '清空',
         noPhotos: '暂无照片，快去上传吧！', zoomHint: '滚动缩放以探索城市',
         uploadFailed: '上传失败', selectProvinceAlert: '请选择省份',
         selectImagesAlert: '请选择图片', maxFilesAlert: '最多选择 {0} 张图片',
-        maxFilesHint: '仅上传前 {0} 张', photo_s: '张照片',
+        maxFilesHint: '已达上限 {0} 张，多余已忽略', photo_s: '张照片',
         uploadSuccessN: '张照片上传成功', uncategorized: '未分类',
         defaultCapital: '默认上传到省会城市',
         // Photo actions
@@ -125,10 +129,13 @@ const TRANSLATIONS = {
         city: 'City', selectProvinceFirst: 'Select province first',
         description: 'Description (optional)', descPlaceholder: 'Add a description...',
         images: 'Images', cancel: 'Cancel', uploadBtn: 'Upload', uploading: 'Uploading...',
+        clickToSelect: 'Click to select images',
+        fromAlbum: 'From Album', fromCamera: 'Take Photo',
+        selectedN: '{0} selected', clearAll: 'Clear all',
         noPhotos: 'No photos yet. Upload some!', zoomHint: 'Scroll to zoom in and explore cities',
         uploadFailed: 'Upload failed', selectProvinceAlert: 'Please select a province',
         selectImagesAlert: 'Please select images', maxFilesAlert: 'Max {0} images allowed',
-        maxFilesHint: 'Only first {0} will be uploaded', photo_s: 'photo(s)',
+        maxFilesHint: 'Limit reached ({0}), extras ignored', photo_s: 'photo(s)',
         uploadSuccessN: ' photo(s) uploaded', uncategorized: 'Uncategorized',
         defaultCapital: 'Default to capital city',
         // Photo actions
@@ -267,7 +274,7 @@ function updateAuthUI() {
         avatarBtn.style.display = isLoggedIn ? '' : 'none';
         if (isLoggedIn && loggedInAvatar) avatarBtn.src = loggedInAvatar;
     }
-    scheduleOverlay();
+    scheduleOverlay(true);
     loadPhotosPanel(currentProvince || undefined, currentCity || undefined);
 }
 
@@ -485,10 +492,15 @@ async function uploadAvatar(input) {
 const geoCache = {};
 let chart = null, currentProvince = null, currentCity = null, currentZoom = 1.2;
 let provinceCenters = {}, loadedCityCenters = {};
-let allPhotos = [], provincePhotoURLs = {}, cityPhotoURLs = {}, provincePhotoCounts = {}, cityPhotoCounts = {};
+let provincePhotoURLs = {}, cityPhotoURLs = {}, provincePhotoCounts = {}, cityPhotoCounts = {};
 const CITY_ZOOM_THRESHOLD = 3.2;
 let overlayRAF = null, wasShowingCities = false;
+let overlayGeoRefs = []; // [{el, coord, offsetY}]
+let overlayDirty = true;
 let currentPreviewPhoto = null, panelPhotos = [], currentPreviewIndex = -1;
+let panelPage = 1;
+const PANEL_PAGE_SIZE = 20;
+let panelTotalCount = 0;
 let viewerZoom = 1, viewerRotation = 0, viewerFullscreen = false;
 
 // ============================================================
@@ -506,7 +518,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('keydown', onKeyDown);
     await loadConfig(); await checkAuth();
     try { await loadChinaMap(); } catch(e) { console.error('Failed to load map data:', e); }
-    await loadAllPhotos();
+    await loadPhotoSummary();
     initUploadForm(); scheduleOverlay(); loadPhotosPanel(); updateAllText();
     preloadAllCityCenters();
     // Ensure ECharts renders correctly after layout settles (especially on mobile)
@@ -563,22 +575,28 @@ async function preloadAllCityCenters() {
         await Promise.all(batch.map(async([name,adcode])=>{ if(loadedCityCenters[name]) return; try{ const geo=await fetchGeoJSON(geoURL(adcode)); loadedCityCenters[name]=extractCenters(geo); }catch(e){} }));
         if(i+batchSize<entries.length) await new Promise(r=>setTimeout(r,batchDelay));
     }
-    scheduleOverlay();
+    scheduleOverlay(true);
 }
 
 // ============================================================
 // Photo data & fuzzy matching
 // ============================================================
-async function loadAllPhotos() { try{ const r=await fetch(api('/api/photos')); allPhotos=await r.json(); }catch(e){allPhotos=[];} rebuildPhotoIndex(); }
-
-function rebuildPhotoIndex() {
-    provincePhotoURLs={}; cityPhotoURLs={}; provincePhotoCounts={}; cityPhotoCounts={};
-    for(const p of allPhotos) {
-        const thumbUrl = p.thumbSmall || p.url;
-        if(!provincePhotoURLs[p.province]) provincePhotoURLs[p.province]=[];
-        if(provincePhotoURLs[p.province].length<5) provincePhotoURLs[p.province].push(thumbUrl);
-        provincePhotoCounts[p.province]=(provincePhotoCounts[p.province]||0)+1;
-        if(p.city){ const k=p.province+'/'+p.city; if(!cityPhotoURLs[k]) cityPhotoURLs[k]=[]; if(cityPhotoURLs[k].length<5) cityPhotoURLs[k].push(thumbUrl); cityPhotoCounts[k]=(cityPhotoCounts[k]||0)+1; }
+async function loadPhotoSummary() {
+    try {
+        const r = await fetch(api('/api/photos/summary'));
+        const summary = await r.json();
+        provincePhotoURLs = {}; cityPhotoURLs = {}; provincePhotoCounts = {}; cityPhotoCounts = {};
+        for (const [prov, ps] of Object.entries(summary)) {
+            provincePhotoURLs[prov] = ps.thumbs || [];
+            provincePhotoCounts[prov] = ps.count || 0;
+            for (const [city, cs] of Object.entries(ps.cities || {})) {
+                const key = prov + '/' + city;
+                cityPhotoURLs[key] = cs.thumbs || [];
+                cityPhotoCounts[key] = cs.count || 0;
+            }
+        }
+    } catch(e) {
+        provincePhotoURLs = {}; cityPhotoURLs = {}; provincePhotoCounts = {}; cityPhotoCounts = {};
     }
 }
 
@@ -668,14 +686,39 @@ function mapZoomOut(){
     updateZoomHint(); scheduleOverlay();
 }
 function getVisibleProvinces(){const m=document.getElementById('map'),w=m.clientWidth,h=m.clientHeight,v=[];for(const[n,c]of Object.entries(provinceCenters)){const px=safeConvertToPixel(c);if(px&&px[0]>=-200&&px[0]<=w+200&&px[1]>=-200&&px[1]<=h+200)v.push(n);}return v;}
-function scheduleOverlay(){if(overlayRAF)cancelAnimationFrame(overlayRAF);overlayRAF=requestAnimationFrame(updateOverlay);}
+function scheduleOverlay(rebuild){if(rebuild)overlayDirty=true;if(overlayRAF)cancelAnimationFrame(overlayRAF);overlayRAF=requestAnimationFrame(doOverlayUpdate);}
+function doOverlayUpdate(){
+    const showCities=currentZoom>CITY_ZOOM_THRESHOLD;
+    if(overlayDirty||showCities!==wasShowingCities){
+        fullRebuildOverlay();
+    } else {
+        repositionOverlay();
+    }
+}
+function repositionOverlay(){
+    const mapEl=document.getElementById('map');
+    if(!mapEl||!chart) return;
+    const w=mapEl.clientWidth, h=mapEl.clientHeight;
+    for(const ref of overlayGeoRefs){
+        try{
+            const px=chart.convertToPixel({seriesIndex:0},ref.coord);
+            if(!px||isNaN(px[0])||isNaN(px[1])||px[0]<-200||px[0]>w+200||px[1]<-200||px[1]>h+200){
+                ref.el.style.display='none';
+            } else {
+                ref.el.style.display='';
+                ref.el.style.left=px[0]+'px';
+                ref.el.style.top=(px[1]+ref.offsetY)+'px';
+            }
+        } catch(e){ ref.el.style.display='none'; }
+    }
+}
 
-function updateOverlay() {
+function fullRebuildOverlay() {
     const overlay=document.getElementById('photo-overlay'); if(!overlay||!chart) return;
     const showCities=currentZoom>CITY_ZOOM_THRESHOLD;
     if(showCities&&!wasShowingCities){overlay.classList.add('city-fade-in');setTimeout(()=>overlay.classList.remove('city-fade-in'),500);}
     wasShowingCities=showCities;
-    const parts=[];
+    const entries=[];
     if(showCities){
         const visibleProvs=getVisibleProvinces(), renderedMarkers=[], MIN_DIST=Math.max(20,60/Math.sqrt(currentZoom));
         for(const provName of visibleProvs){
@@ -697,13 +740,13 @@ function updateOverlay() {
                     if(cityPhotoURLs[k1]) matchedPhotoKeys.add(k1);
                     if(cityPhotoURLs[k2]) matchedPhotoKeys.add(k2);
                     if(k3&&cityPhotoURLs[k3]) matchedPhotoKeys.add(k3);
-                    parts.push(buildClusterHTML(px,urls,cityName,count,fullName,cityName,isCapital));
+                    entries.push({html:buildClusterHTML(px,urls,cityName,count,fullName,cityName,isCapital),coord:center,offsetY:0});
                 } else {
                     // Only cull empty markers against other empty markers (not against photo clusters)
                     // Never cull capital cities — they should always be visible
                     let skip=false;
                     if(!isCapital){ for(const r of renderedMarkers){const dx=px[0]-r.x,dy=px[1]-r.y;if(dx*dx+dy*dy<MIN_DIST*MIN_DIST){skip=true;break;}} }
-                    if(!skip){renderedMarkers.push({x:px[0],y:px[1]});parts.push(buildCityMarkerHTML(px,cityName,fullName,isCapital));}
+                    if(!skip){renderedMarkers.push({x:px[0],y:px[1]});entries.push({html:buildCityMarkerHTML(px,cityName,fullName,isCapital),coord:center,offsetY:0});}
                 }
             }
             // Show capital photos at province center if not matched by GeoJSON city
@@ -711,7 +754,7 @@ function updateOverlay() {
                 const capData=lookupCityPhotos(fullName,capitalName);
                 if(capData.urls.length>0){
                     const provCenter=provinceCenters[provName];
-                    if(provCenter){const px=safeConvertToPixel(provCenter);if(px){parts.push(buildClusterHTML(px,capData.urls,capitalName,capData.count,fullName,capitalName,true));}}
+                    if(provCenter){const px=safeConvertToPixel(provCenter);if(px){entries.push({html:buildClusterHTML(px,capData.urls,capitalName,capData.count,fullName,capitalName,true),coord:provCenter,offsetY:0});}}
                     const ck1=fullName+'/'+capitalName,ck2=fullName+'/'+capitalName+'市',ck3=capitalName.endsWith('市')?fullName+'/'+capitalName.slice(0,-1):'';
                     if(cityPhotoURLs[ck1]) matchedPhotoKeys.add(ck1);
                     if(cityPhotoURLs[ck2]) matchedPhotoKeys.add(ck2);
@@ -732,7 +775,7 @@ function updateOverlay() {
                 if(!center) center=provinceCenters[provName];
                 if(!center) continue;
                 const px=safeConvertToPixel(center); if(!px) continue;
-                parts.push(buildClusterHTML(px,cityPhotoURLs[key],photoCity,cityPhotoCounts[key]||0,fullName,photoCity,false));
+                entries.push({html:buildClusterHTML(px,cityPhotoURLs[key],photoCity,cityPhotoCounts[key]||0,fullName,photoCity,false),coord:center,offsetY:0});
             }
         }
     } else {
@@ -741,10 +784,16 @@ function updateOverlay() {
             const px=safeConvertToPixel(center); if(!px)continue;
             // Offset thumbnails below province label so they don't cover the name
             px[1]+=25;
-            parts.push(buildClusterHTML(px,urls,provName,provincePhotoCounts[fullName]||0,fullName,'',false));
+            entries.push({html:buildClusterHTML(px,urls,provName,provincePhotoCounts[fullName]||0,fullName,'',false),coord:center,offsetY:25});
         }
     }
-    overlay.innerHTML=parts.join('');
+    overlay.innerHTML=entries.map(e=>e.html).join('');
+    overlayDirty=false;
+    overlayGeoRefs=[];
+    const children=overlay.children;
+    for(let i=0;i<children.length&&i<entries.length;i++){
+        overlayGeoRefs.push({el:children[i],coord:entries[i].coord,offsetY:entries[i].offsetY});
+    }
 }
 
 function safeConvertToPixel(coord){try{const px=chart.convertToPixel({seriesIndex:0},coord);if(!px||isNaN(px[0])||isNaN(px[1]))return null;const el=document.getElementById('map');if(px[0]<-80||px[0]>el.clientWidth+80||px[1]<-80||px[1]>el.clientHeight+80)return null;return px;}catch(e){return null;}}
@@ -804,36 +853,79 @@ function updateBreadcrumb() {
     if(currentProvince){navProv.style.display='inline';navProv.textContent=currentProvince;navProv.className='nav-link'+(!currentCity?' active':'');navProv.onclick=()=>{currentCity=null;updateBreadcrumb();loadPhotosPanel(currentProvince);};}else{navProv.style.display='none';}
     if(currentCity){navCity.style.display='inline';navCity.textContent=currentCity;navCity.className='nav-link active';}else{navCity.style.display='none';}
     const title=document.getElementById('photo-title');
-    if(currentCity)title.textContent=currentCity; else if(currentProvince)title.textContent=currentProvince; else title.textContent=t('photos');
+    const totalPhotos = Object.values(provincePhotoCounts).reduce((a,b)=>a+b, 0);
+    if(currentCity)title.textContent=currentCity; else if(currentProvince){const pc=provincePhotoCounts[currentProvince]||0; title.textContent=currentProvince+(pc?' ('+pc+' '+t('photo_s')+')':'');} else title.textContent=t('photos')+(totalPhotos?' ('+totalPhotos+' '+t('photo_s')+')':'');
 }
 
 // ============================================================
 // Right panel
 // ============================================================
-async function loadPhotosPanel(province, city) {
+function showLoadMoreBtn() {
+    let btn = document.getElementById('load-more-btn');
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'load-more-btn';
+        btn.className = 'btn-load-more';
+        btn.onclick = () => loadPhotosPanel(currentProvince || undefined, currentCity || undefined, true);
+        const panel = document.getElementById('photo-panel');
+        panel.appendChild(btn);
+    }
+    const remaining = panelTotalCount - panelPhotos.length;
+    btn.textContent = (currentLang === 'en' ? 'Load more' : '加载更多') + ' (' + remaining + ')';
+    btn.style.display = '';
+}
+function removeLoadMoreBtn() {
+    const btn = document.getElementById('load-more-btn');
+    if (btn) btn.style.display = 'none';
+}
+
+async function loadPhotosPanel(province, city, loadMore) {
     const grid=document.getElementById('photo-grid'),empty=document.getElementById('photo-empty');
+    if (loadMore) {
+        panelPage++;
+    } else {
+        panelPage = 1;
+    }
     let url=api('/api/photos'); const params=[];
     if(province)params.push('province='+encodeURIComponent(province));
     if(city)params.push('city='+encodeURIComponent(city));
+    params.push('page='+panelPage);
+    params.push('limit='+PANEL_PAGE_SIZE);
     if(params.length)url+='?'+params.join('&');
     try{
         const resp=await fetch(url); const photos=await resp.json();
-        panelPhotos=photos; // store for navigation
-        if(photos.length===0){grid.style.display='none';empty.style.display='flex';return;}
+        const totalHeader = resp.headers.get('X-Total-Count');
+        panelTotalCount = totalHeader ? parseInt(totalHeader, 10) : photos.length;
+        if (loadMore) {
+            panelPhotos = panelPhotos.concat(photos);
+        } else {
+            panelPhotos = photos;
+        }
+        // Update title with total count
+        const title=document.getElementById('photo-title');
+        if(city) title.textContent=city+' ('+panelTotalCount+' '+t('photo_s')+')';
+        else if(province){const pc=provincePhotoCounts[province]||panelTotalCount; title.textContent=province+' ('+pc+' '+t('photo_s')+')';}
+        else{const totalPhotos=Object.values(provincePhotoCounts).reduce((a,b)=>a+b,0); title.textContent=t('photos')+' ('+totalPhotos+' '+t('photo_s')+')';}
+        if(panelPhotos.length===0){grid.style.display='none';empty.style.display='flex';removeLoadMoreBtn();return;}
         grid.style.display='grid'; empty.style.display='none';
         // Determine whether to show location on cards
         const showLoc = !province; // only show location when viewing all photos
         if(province&&!city){
             const groups={};
-            for(const p of photos){const k=p.city||'_prov';if(!groups[k])groups[k]=[];groups[k].push(p);}
+            for(const p of panelPhotos){const k=p.city||'_prov';if(!groups[k])groups[k]=[];groups[k].push(p);}
             let html='';
             if(groups['_prov']){html+=`<div class="city-group">${t('uncategorized')} (${groups['_prov'].length})</div>`;for(const p of groups['_prov'])html+=photoCardHTML(p,showLoc);}
             for(const[cn,cp]of Object.entries(groups)){if(cn==='_prov')continue;html+=`<div class="city-group">${cn} (${cp.length})</div>`;for(const p of cp)html+=photoCardHTML(p,showLoc);}
             grid.innerHTML=html;
         } else {
-            grid.innerHTML=photos.map(p=>photoCardHTML(p,showLoc)).join('');
+            grid.innerHTML=panelPhotos.map(p=>photoCardHTML(p,showLoc)).join('');
         }
-    }catch(e){grid.style.display='none';empty.style.display='flex';}
+        if (panelPhotos.length < panelTotalCount) {
+            showLoadMoreBtn();
+        } else {
+            removeLoadMoreBtn();
+        }
+    }catch(e){grid.style.display='none';empty.style.display='flex';removeLoadMoreBtn();}
 }
 
 function photoCardHTML(photo, showLocation) {
@@ -1285,7 +1377,7 @@ async function saveDescription() {
             hideEditModal();
             hidePreviewModal();
             showToast(t('saved'));
-            await loadAllPhotos(); chart.setOption({series:[{data:buildProvinceMapData()}]}); scheduleOverlay();
+            await loadPhotoSummary(); chart.setOption({series:[{data:buildProvinceMapData()}]}); scheduleOverlay(true);
             loadPhotosPanel(currentProvince||undefined,currentCity||undefined);
         } else {btn.textContent=t('save');btn.disabled=false;}
     }catch(e){btn.textContent=t('save');btn.disabled=false;}
@@ -1299,7 +1391,7 @@ async function deletePhoto() {
         if(resp.ok){
             hidePreviewModal();
             showToast(t('deleted'));
-            await loadAllPhotos(); chart.setOption({series:[{data:buildProvinceMapData()}]}); scheduleOverlay();
+            await loadPhotoSummary(); chart.setOption({series:[{data:buildProvinceMapData()}]}); scheduleOverlay(true);
             loadPhotosPanel(currentProvince||undefined,currentCity||undefined);
         }
     }catch(e){}
@@ -1308,25 +1400,76 @@ async function deletePhoto() {
 // ============================================================
 // Upload
 // ============================================================
-const MAX_UPLOAD_FILES = 20;
+const MAX_UPLOAD_FILES = 50;
+let pendingFiles = []; // accumulated files across multiple picks
+
+const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && window.innerWidth <= 768);
 
 function initUploadForm(){
     const sel=document.getElementById('upload-province');
     for(const prov of PROVINCE_LIST){const o=document.createElement('option');o.value=prov;o.textContent=prov;sel.appendChild(o);}
-    document.getElementById('upload-file').addEventListener('change',e=>{
-        const p=document.getElementById('upload-preview'); p.innerHTML='';
-        const files=Array.from(e.target.files);
-        if(files.length>MAX_UPLOAD_FILES){
-            showToast(t('maxFilesAlert', MAX_UPLOAD_FILES));
-        }
-        const show=files.slice(0, MAX_UPLOAD_FILES);
-        for(const f of show){const img=document.createElement('img');img.src=URL.createObjectURL(f);p.appendChild(img);}
-        if(files.length>MAX_UPLOAD_FILES){
-            const hint=document.createElement('span');
-            hint.className='upload-limit-hint';
-            hint.textContent=t('maxFilesHint', MAX_UPLOAD_FILES);
-            p.appendChild(hint);
-        }
+    // Desktop file input
+    document.getElementById('upload-file-desktop').addEventListener('change',e=>{
+        appendPendingFiles(Array.from(e.target.files));
+        e.target.value='';
+    });
+    // Mobile file inputs
+    document.getElementById('upload-file-album').addEventListener('change',e=>{
+        appendPendingFiles(Array.from(e.target.files));
+        e.target.value='';
+    });
+    document.getElementById('upload-file-camera').addEventListener('change',e=>{
+        appendPendingFiles(Array.from(e.target.files));
+        e.target.value='';
+    });
+    // Show/hide desktop vs mobile upload controls
+    document.getElementById('upload-desktop-zone').style.display = isMobileDevice ? 'none' : '';
+    document.getElementById('upload-mobile-btns').style.display = isMobileDevice ? '' : 'none';
+}
+
+function pickFromDesktop(){ document.getElementById('upload-file-desktop').click(); }
+function pickFromAlbum(){ document.getElementById('upload-file-album').click(); }
+function pickFromCamera(){ document.getElementById('upload-file-camera').click(); }
+
+function appendPendingFiles(newFiles){
+    if(!newFiles.length) return;
+    const remaining = MAX_UPLOAD_FILES - pendingFiles.length;
+    if(remaining <= 0){ showToast(t('maxFilesAlert', MAX_UPLOAD_FILES)); return; }
+    const toAdd = newFiles.slice(0, remaining);
+    if(newFiles.length > remaining) showToast(t('maxFilesHint', MAX_UPLOAD_FILES));
+    pendingFiles.push(...toAdd);
+    renderUploadPreview();
+}
+
+function removePendingFile(idx){
+    const removed = pendingFiles.splice(idx, 1);
+    if(removed[0] && removed[0]._objUrl) URL.revokeObjectURL(removed[0]._objUrl);
+    renderUploadPreview();
+}
+
+function clearPendingFiles(){
+    for(const f of pendingFiles) if(f._objUrl) URL.revokeObjectURL(f._objUrl);
+    pendingFiles=[];
+    renderUploadPreview();
+}
+
+function renderUploadPreview(){
+    const p=document.getElementById('upload-preview'); p.innerHTML='';
+    const countEl=document.getElementById('upload-file-count');
+    if(pendingFiles.length===0){ countEl.style.display='none'; return; }
+    countEl.style.display='flex';
+    countEl.innerHTML=t('selectedN', pendingFiles.length)+' <span class="clear-all" onclick="clearPendingFiles()">'+t('clearAll')+'</span>';
+    if(pendingFiles.length>=MAX_UPLOAD_FILES){
+        const hint=document.createElement('span'); hint.className='upload-limit-hint';
+        hint.textContent=t('maxFilesHint', MAX_UPLOAD_FILES); countEl.appendChild(hint);
+    }
+    pendingFiles.forEach((f,i)=>{
+        if(!f._objUrl) f._objUrl=URL.createObjectURL(f);
+        const wrap=document.createElement('div'); wrap.className='upload-thumb';
+        const img=document.createElement('img'); img.src=f._objUrl;
+        const btn=document.createElement('button'); btn.className='thumb-remove'; btn.textContent='×';
+        btn.onclick=()=>removePendingFile(i);
+        wrap.appendChild(img); wrap.appendChild(btn); p.appendChild(wrap);
     });
 }
 
@@ -1373,20 +1516,42 @@ function showUploadModal(){
     }
 }
 
-function hideUploadModal(){document.getElementById('upload-modal').style.display='none';document.getElementById('upload-preview').innerHTML='';document.getElementById('upload-file').value='';document.getElementById('upload-desc').value='';}
+function hideUploadModal(){document.getElementById('upload-modal').style.display='none';clearPendingFiles();document.getElementById('upload-desc').value='';}
+
+function showUploadProgress(current, total) {
+    const overlay = document.getElementById('upload-progress-overlay');
+    const pct = Math.round((current / total) * 100);
+    const circumference = 2 * Math.PI * 52; // r=52
+    const bar = overlay.querySelector('.upload-progress-bar');
+    bar.style.strokeDashoffset = circumference - (circumference * pct / 100);
+    document.getElementById('upload-progress-pct').textContent = pct + '%';
+    document.getElementById('upload-progress-detail').textContent = current + '/' + total;
+    overlay.style.display = 'flex';
+}
+
+function hideUploadProgress() {
+    document.getElementById('upload-progress-overlay').style.display = 'none';
+}
 
 async function doUpload(){
     const province=document.getElementById('upload-province').value;
     let city=document.getElementById('upload-city').value;
-    const desc=document.getElementById('upload-desc').value.trim(), allFiles=document.getElementById('upload-file').files;
+    const desc=document.getElementById('upload-desc').value.trim();
     if(!province){showToast(t('selectProvinceAlert'));return;}
-    if(allFiles.length===0){showToast(t('selectImagesAlert'));return;}
-    const files=Array.from(allFiles).slice(0, MAX_UPLOAD_FILES);
+    if(pendingFiles.length===0){showToast(t('selectImagesAlert'));return;}
     if(!city) city=resolveCapitalGeoName(province);
     const btn=document.getElementById('upload-modal').querySelector('.btn-submit'); btn.textContent=t('uploading'); btn.disabled=true;
+    const total=pendingFiles.length;
     let success=0;
-    for(const file of files){const fd=new FormData();fd.append('province',province);fd.append('city',city);fd.append('description',desc);fd.append('file',file);try{const r=await fetch(api('/api/upload'),{method:'POST',headers:authUploadHeaders(),body:fd});if(r.ok)success++;}catch(e){}}
+    showUploadProgress(0, total);
+    for(let i=0;i<pendingFiles.length;i++){
+        const file=pendingFiles[i];
+        const fd=new FormData();fd.append('province',province);fd.append('city',city);fd.append('description',desc);fd.append('file',file);
+        try{const r=await fetch(api('/api/upload'),{method:'POST',headers:authUploadHeaders(),body:fd});if(r.ok)success++;}catch(e){}
+        showUploadProgress(i+1, total);
+    }
+    hideUploadProgress();
     btn.textContent=t('uploadBtn'); btn.disabled=false;
-    if(success>0){hideUploadModal();showToast(success+' '+t('uploadSuccessN'));await loadAllPhotos();chart.setOption({series:[{data:buildProvinceMapData()}]});scheduleOverlay();loadPhotosPanel(currentProvince||undefined,currentCity||undefined);}
+    if(success>0){currentProvince=province;currentCity=city||null;hideUploadModal();showToast(success+' '+t('uploadSuccessN'));await loadPhotoSummary();chart.setOption({series:[{data:buildProvinceMapData()}]});scheduleOverlay(true);updateBreadcrumb();loadPhotosPanel(currentProvince||undefined,currentCity||undefined);}
     else showToast(t('uploadFailed'));
 }
